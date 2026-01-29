@@ -112,8 +112,11 @@
             showLoading();
             
             try {
+                // Use CORS proxy for GitHub Pages
+                const corsProxy = 'https://corsproxy.io/?';
+                
                 // Get athlete info
-                const athleteResponse = await fetch('https://www.strava.com/api/v3/athlete', {
+                const athleteResponse = await fetch(corsProxy + encodeURIComponent('https://www.strava.com/api/v3/athlete'), {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`
                     }
@@ -130,7 +133,7 @@
 
                 // Get activities from last 6 months
                 const sixMonthsAgo = Math.floor(Date.now() / 1000) - (180 * 24 * 60 * 60);
-                const activitiesResponse = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${sixMonthsAgo}&per_page=1000`, {
+                const activitiesResponse = await fetch(corsProxy + encodeURIComponent(`https://www.strava.com/api/v3/athlete/activities?after=${sixMonthsAgo}&per_page=1000`), {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`
                     }
