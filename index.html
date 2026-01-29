@@ -147,7 +147,7 @@
                 displayActivities(athlete, runActivities);
             } catch (error) {
                 showError('Error loading activities: ' + error.message);
-                clearStoredTokens();
+                clearStoredToken();
                 showNotConnected();
             }
         }
