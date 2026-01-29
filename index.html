@@ -120,6 +120,9 @@
                 });
 
                 if (!athleteResponse.ok) {
+                    if (athleteResponse.status === 401) {
+                        throw new Error('Invalid or expired access token. Please enter a new one.');
+                    }
                     throw new Error('Failed to fetch athlete data');
                 }
 
@@ -146,9 +149,12 @@
                 
                 displayActivities(athlete, runActivities);
             } catch (error) {
-                showError('Error loading activities: ' + error.message);
-                clearStoredToken();
-                showNotConnected();
+                console.error('Error loading activities:', error);
+                // Only clear token if it's an auth error
+                if (error.message.includes('Invalid or expired')) {
+                    clearStoredToken();
+                }
+                showError(error.message);
             }
         }
 
@@ -438,7 +444,23 @@
         function showError(message) {
             document.getElementById('error-message').textContent = message;
             document.getElementById('loading').classList.add('hidden');
+            document.getElementById('not-connected').classList.add('hidden');
+            document.getElementById('connected').classList.add('hidden');
             document.getElementById('error').classList.remove('hidden');
+            
+            // Add a retry button
+            const errorDiv = document.getElementById('error');
+            const existingButton = errorDiv.querySelector('button');
+            if (!existingButton) {
+                const button = document.createElement('button');
+                button.textContent = 'Try Again';
+                button.className = 'mt-4 bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded-lg transition-colors';
+                button.onclick = () => {
+                    clearStoredToken();
+                    showNotConnected();
+                };
+                errorDiv.querySelector('div').appendChild(button);
+            }
         }
 
         function getStoredToken() {
