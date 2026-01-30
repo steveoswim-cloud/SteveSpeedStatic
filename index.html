@@ -104,27 +104,19 @@
             font-style: italic;
         }
         
-        .splits-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        
-        .splits-table th {
-            background-color: #f8f8f8;
-            padding: 10px;
-            text-align: left;
-            font-weight: bold;
-            border-bottom: 2px solid #ddd;
-        }
-        
-        .splits-table td {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .splits-table tr:hover {
+        .chart-container {
+            margin-top: 15px;
+            padding: 20px;
             background-color: #fafafa;
+            border-radius: 8px;
+        }
+        
+        .chart-canvas {
+            width: 100%;
+            height: 400px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
         
         .error {
@@ -416,49 +408,144 @@
                 return;
             }
             
-            var html = '<h2>Kilometer Splits</h2>';
-            html += '<table class="splits-table">';
-            html += '<tr>';
-            html += '<th>KM</th>';
-            html += '<th>Time</th>';
-            html += '<th>Grade</th>';
-            html += '</tr>';
+            var html = '<h2>Speed vs Grade Analysis</h2>';
+            html += '<div class="chart-container">';
+            html += '<canvas id="chart-' + activityId + '" class="chart-canvas"></canvas>';
+            html += '</div>';
             
-            for (var i = 0; i < activity.splits_metric.length; i++) {
-                var split = activity.splits_metric[i];
-                var km = split.split;
-                var time = formatTime(split.elapsed_time);
-                var grade = formatGrade(split.elevation_difference);
+            splitsDiv.innerHTML = html;
+            
+            // Draw the chart
+            drawScatterPlot(activityId, activity.splits_metric);
+        }
+
+        function drawScatterPlot(activityId, splits) {
+            var canvas = document.getElementById('chart-' + activityId);
+            if (!canvas) return;
+            
+            var ctx = canvas.getContext('2d');
+            var width = canvas.offsetWidth;
+            var height = canvas.offsetHeight;
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Prepare data points
+            var dataPoints = [];
+            for (var i = 0; i < splits.length; i++) {
+                var split = splits[i];
+                var grade = split.elevation_difference / 10; // percent grade
+                var timeMinutes = split.elapsed_time / 60;
+                var speed = 60 / timeMinutes; // km/h
                 
-                html += '<tr>';
-                html += '<td><strong>' + km + '</strong></td>';
-                html += '<td>' + time + '</td>';
-                html += '<td>' + grade + '</td>';
-                html += '</tr>';
+                dataPoints.push({
+                    grade: grade,
+                    speed: speed,
+                    km: split.split
+                });
             }
             
-            html += '</table>';
-            splitsDiv.innerHTML = html;
+            // Find min/max for scaling
+            var minGrade = Math.min.apply(null, dataPoints.map(function(p) { return p.grade; }));
+            var maxGrade = Math.max.apply(null, dataPoints.map(function(p) { return p.grade; }));
+            var minSpeed = Math.min.apply(null, dataPoints.map(function(p) { return p.speed; }));
+            var maxSpeed = Math.max.apply(null, dataPoints.map(function(p) { return p.speed; }));
+            
+            // Add padding to ranges
+            var gradeRange = maxGrade - minGrade;
+            var speedRange = maxSpeed - minSpeed;
+            minGrade = minGrade - gradeRange * 0.1;
+            maxGrade = maxGrade + gradeRange * 0.1;
+            minSpeed = minSpeed - speedRange * 0.1;
+            maxSpeed = maxSpeed + speedRange * 0.1;
+            
+            // Chart margins
+            var margin = { top: 20, right: 20, bottom: 50, left: 60 };
+            var chartWidth = width - margin.left - margin.right;
+            var chartHeight = height - margin.top - margin.bottom;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw axes
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(margin.left, margin.top);
+            ctx.lineTo(margin.left, height - margin.bottom);
+            ctx.lineTo(width - margin.right, height - margin.bottom);
+            ctx.stroke();
+            
+            // Draw grid lines and labels
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            
+            // Y-axis grid (speed)
+            var ySteps = 5;
+            for (var i = 0; i <= ySteps; i++) {
+                var speed = minSpeed + (maxSpeed - minSpeed) * (i / ySteps);
+                var y = height - margin.bottom - (chartHeight * i / ySteps);
+                
+                ctx.beginPath();
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(width - margin.right, y);
+                ctx.stroke();
+                
+                ctx.textAlign = 'right';
+                ctx.fillText(speed.toFixed(1), margin.left - 5, y + 4);
+            }
+            
+            // X-axis grid (grade)
+            var xSteps = 6;
+            for (var i = 0; i <= xSteps; i++) {
+                var grade = minGrade + (maxGrade - minGrade) * (i / xSteps);
+                var x = margin.left + (chartWidth * i / xSteps);
+                
+                ctx.beginPath();
+                ctx.moveTo(x, margin.top);
+                ctx.lineTo(x, height - margin.bottom);
+                ctx.stroke();
+                
+                ctx.textAlign = 'center';
+                ctx.fillText(grade.toFixed(1) + '%', x, height - margin.bottom + 20);
+            }
+            
+            // Draw axis labels
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Percent Grade (%)', width / 2, height - 10);
+            
+            ctx.save();
+            ctx.translate(15, height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Speed (km/h)', 0, 0);
+            ctx.restore();
+            
+            // Plot data points
+            for (var i = 0; i < dataPoints.length; i++) {
+                var point = dataPoints[i];
+                var x = margin.left + ((point.grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
+                var y = height - margin.bottom - ((point.speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
+                
+                ctx.fillStyle = '#fc5200';
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Add KM label
+                ctx.fillStyle = '#333';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('km' + point.km, x, y - 10);
+            }
         }
 
         function formatTime(seconds) {
             var mins = Math.floor(seconds / 60);
             var secs = Math.floor(seconds % 60);
             return mins + ':' + (secs < 10 ? '0' : '') + secs;
-        }
-
-        function formatGrade(elevationMeters) {
-            // Percent grade = elevation gain / 10
-            var grade = elevationMeters / 10;
-            var rounded = grade.toFixed(1);
-            
-            if (grade > 0) {
-                return '+' + rounded + '%';
-            } else if (grade < 0) {
-                return rounded + '%';
-            } else {
-                return '0.0%';
-            }
         }
 
         function showError(elementId, message) {
