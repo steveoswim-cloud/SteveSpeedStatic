@@ -194,7 +194,9 @@
     <script>
         // REPLACE THESE WITH YOUR STRAVA APP CREDENTIALS
         const CLIENT_ID = '198838';
-        const CLIENT_SECRET = '6dc2c8ad495780aca5d92e2e13db8749de162779';
+        const CLIENT_SECRET = '6dc2c8ad495780aca5d92e2e13db8749de162779
+
+';
         const REDIRECT_URI = window.location.href.split('?')[0];
 
         let accessToken = null;
@@ -301,7 +303,7 @@
                 // Filter for only Run and Trail Run activities
                 activities = data.filter(function(activity) {
                     return activity.type === 'Run' || activity.type === 'TrailRun';
-                }).slice(0, 100); // Take first 100 runs
+                }).slice(0, 100); // Take first 5 runs
                 displayActivities(activities);
             })
             .catch(err => {
@@ -432,10 +434,12 @@
             canvas.width = width;
             canvas.height = height;
             
-            // Prepare data points
+            // Prepare data points (exclude the last kilometer)
             var dataPoints = [];
-            for (var i = 0; i < splits.length; i++) {
-                var split = splits[i];
+            var splitsToUse = splits.length > 1 ? splits.slice(0, -1) : splits;
+            
+            for (var i = 0; i < splitsToUse.length; i++) {
+                var split = splitsToUse[i];
                 var grade = split.elevation_difference / 10; // percent grade
                 var timeMinutes = split.elapsed_time / 60;
                 var speed = 60 / timeMinutes; // km/h
@@ -525,6 +529,33 @@
             ctx.rotate(-Math.PI / 2);
             ctx.fillText('Speed (km/h)', 0, 0);
             ctx.restore();
+            
+            // Draw reference curve: speed = -0.0264*grade^2 - 0.0165*grade + 9.7922
+            ctx.strokeStyle = '#0066cc';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            var curvePoints = 100;
+            for (var i = 0; i <= curvePoints; i++) {
+                var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
+                var speed = -0.0264 * grade * grade - 0.0165 * grade + 9.7922;
+                
+                var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
+                var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Add legend for reference curve
+            ctx.fillStyle = '#0066cc';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('Reference Model', margin.left + 10, margin.top + 15);
             
             // Plot data points
             for (var i = 0; i < dataPoints.length; i++) {
