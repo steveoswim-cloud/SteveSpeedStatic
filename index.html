@@ -300,7 +300,7 @@
             .then(data => {
                 // Filter for only Run and Trail Run activities
                 activities = data.filter(function(activity) {
-                    return activity.type === 'TrailRun';
+                    return activity.type === 'Run' || activity.type === 'TrailRun';
                 }).slice(0, 50); // Take first 50 trail runs
                 displayActivities(activities);
             })
