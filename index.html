@@ -177,8 +177,8 @@
     <!-- Main Section -->
     <div id="mainSection" class="hidden">
         <div class="card">
-            <h1>My Recent Activities</h1>
-            <p>Click on any activity to view kilometer-by-kilometer splits</p>
+            <h1>My Recent Running Activities</h1>
+            <p>Your last 5 runs and trail runs - click to view kilometer-by-kilometer splits</p>
             <button onclick="logout()">Disconnect</button>
         </div>
         
@@ -282,7 +282,7 @@
             document.getElementById('activitiesSection').classList.add('hidden');
             document.getElementById('mainError').classList.add('hidden');
 
-            fetch('https://www.strava.com/api/v3/athlete/activities?per_page=50', {
+            fetch('https://www.strava.com/api/v3/athlete/activities?per_page=100', {
                 headers: {
                     'Authorization': 'Bearer ' + accessToken
                 }
@@ -298,7 +298,10 @@
                 return response.json();
             })
             .then(data => {
-                activities = data;
+                // Filter for only Run and Trail Run activities
+                activities = data.filter(function(activity) {
+                    return activity.type === 'Run' || activity.type === 'TrailRun';
+                }).slice(0, 100); // Take first 100 runs
                 displayActivities(activities);
             })
             .catch(err => {
