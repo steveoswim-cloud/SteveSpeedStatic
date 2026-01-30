@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UTS 100k prep by SteveSpeed</title>
+    <title>UTS 100k Prep by SteveSpeed</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -167,8 +167,8 @@
     <!-- Login Section -->
     <div id="loginSection">
         <div class="card">
-            <h1>UTS 100k prep by SteveSpeed</h1>
-            <p>Connect your Strava account to view your recent runs and trail runs with detailed speed and grade information.</p>
+            <h1>Strava Activities Viewer</h1>
+            <p>Connect your Strava account to view your recent trail runs with detailed speed and grade info.</p>
             <div id="loginError" class="error hidden"></div>
             <button onclick="login()">Connect with Strava</button>
         </div>
@@ -177,8 +177,8 @@
     <!-- Main Section -->
     <div id="mainSection" class="hidden">
         <div class="card">
-            <h1>My Recent Running Activities</h1>
-            <p>Your recent runs and trail runs - click to view kilometer-by-kilometer splits</p>
+            <h1>My Recent Trail Runs</h1>
+            <p>Your your recent trail runs - click to view detailed speed and grade info</p>
             <button onclick="logout()">Disconnect</button>
         </div>
         
@@ -282,7 +282,7 @@
             document.getElementById('activitiesSection').classList.add('hidden');
             document.getElementById('mainError').classList.add('hidden');
 
-            fetch('https://www.strava.com/api/v3/athlete/activities?per_page=100', {
+            fetch('https://www.strava.com/api/v3/athlete/activities?per_page=500', {
                 headers: {
                     'Authorization': 'Bearer ' + accessToken
                 }
@@ -300,8 +300,8 @@
             .then(data => {
                 // Filter for only Run and Trail Run activities
                 activities = data.filter(function(activity) {
-                    return activity.type === 'Run' || activity.type === 'TrailRun';
-                }).slice(0, 100); // Take first 5 runs
+                    return activity.type === 'TrailRun';
+                }).slice(0, 100); // Take first 100 trail runs
                 displayActivities(activities);
             })
             .catch(err => {
@@ -450,18 +450,24 @@
             }
             
             // Find min/max for scaling
-            var minGrade = Math.min.apply(null, dataPoints.map(function(p) { return p.grade; }));
-            var maxGrade = Math.max.apply(null, dataPoints.map(function(p) { return p.grade; }));
-            var minSpeed = Math.min.apply(null, dataPoints.map(function(p) { return p.speed; }));
+            var minGradeData = Math.min.apply(null, dataPoints.map(function(p) { return p.grade; }));
+            var maxGradeData = Math.max.apply(null, dataPoints.map(function(p) { return p.grade; }));
             var maxSpeed = Math.max.apply(null, dataPoints.map(function(p) { return p.speed; }));
             
+            // Force Y-axis to start at 0
+            var minSpeed = 0;
+            
+            // Force X-axis to have 0 centered - make symmetric around 0
+            var maxAbsGrade = Math.max(Math.abs(minGradeData), Math.abs(maxGradeData));
+            var minGrade = -maxAbsGrade;
+            var maxGrade = maxAbsGrade;
+            
             // Add padding to ranges
-            var gradeRange = maxGrade - minGrade;
             var speedRange = maxSpeed - minSpeed;
-            minGrade = minGrade - gradeRange * 0.1;
-            maxGrade = maxGrade + gradeRange * 0.1;
-            minSpeed = minSpeed - speedRange * 0.1;
             maxSpeed = maxSpeed + speedRange * 0.1;
+            var gradeRange = maxGrade - minGrade;
+            minGrade = minGrade - gradeRange * 0.05;
+            maxGrade = maxGrade + gradeRange * 0.05;
             
             // Chart margins
             var margin = { top: 20, right: 20, bottom: 50, left: 60 };
