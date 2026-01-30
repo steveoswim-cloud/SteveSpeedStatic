@@ -1,237 +1,467 @@
-import React, { useState } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Activity, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strava Run Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.10.3/Recharts.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState } = React;
+        const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
 
-const StravaAnalyzer = () => {
-  const [activities, setActivities] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [accessToken, setAccessToken] = useState('');
+        const ActivityIcon = () => (
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+        );
 
-  const fetchActivities = async () => {
-    if (!accessToken || accessToken.trim() === '') {
-      setError('Please enter your Strava access token');
-      return;
-    }
+        const KeyIcon = () => (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+        );
 
-    setLoading(true);
-    setError('');
+        const AlertIcon = () => (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
 
-    try {
-      const proxyUrl = 'https://corsproxy.io/?';
-      const stravaUrl = 'https://www.strava.com/api/v3/athlete/activities?per_page=100';
-      
-      const response = await fetch(proxyUrl + encodeURIComponent(stravaUrl), {
-        headers: {
-          'Authorization': `Bearer ${accessToken.trim()}`
-        }
-      });
+        const StravaAnalyzer = () => {
+            const [activities, setActivities] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+            const [accessToken, setAccessToken] = useState('');
+            const [step, setStep] = useState('setup');
+            
+            const [clientId, setClientId] = useState('');
+            const [clientSecret, setClientSecret] = useState('');
+            const [authCode, setAuthCode] = useState('');
+            const [exchanging, setExchanging] = useState(false);
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Invalid or expired access token. Please generate a new one.');
-        }
-        throw new Error(`Failed to fetch activities (Status: ${response.status}). Check your access token.`);
-      }
+            // Get the current page URL for redirect_uri
+            const getRedirectUri = () => {
+                return window.location.origin + window.location.pathname;
+            };
 
-      const data = await response.json();
-      
-      if (!Array.isArray(data)) {
-        throw new Error('Unexpected response format from Strava API');
-      }
+            // Check if we have a code in the URL (after redirect from Strava)
+            React.useEffect(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                if (code) {
+                    setAuthCode(code);
+                    setStep('exchange');
+                    // Clean up URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            }, []);
 
-      const runActivities = data
-        .filter(activity => activity.type === 'Run' || activity.type === 'TrailRun')
-        .slice(0, 20)
-        .map(activity => ({
-          id: activity.id,
-          name: activity.name,
-          type: activity.type,
-          date: new Date(activity.start_date).toLocaleDateString(),
-          distance: (activity.distance / 1000).toFixed(2),
-          duration: Math.round(activity.moving_time / 60),
-          pace: (activity.moving_time / 60 / (activity.distance / 1000)).toFixed(2),
-          elevation: Math.round(activity.total_elevation_gain)
-        }));
+            const exchangeToken = async () => {
+                if (!clientId || !clientSecret || !authCode) {
+                    setError('Please fill in all fields');
+                    return;
+                }
 
-      if (runActivities.length === 0) {
-        setError('No run or trail run activities found in your last 100 activities.');
-      } else {
-        setActivities(runActivities);
-      }
-    } catch (err) {
-      setError(err.message);
-      console.error('Fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+                setExchanging(true);
+                setError('');
 
-  const stats = activities.length > 0 ? {
-    totalDistance: activities.reduce((sum, a) => sum + parseFloat(a.distance), 0).toFixed(2),
-    totalTime: activities.reduce((sum, a) => sum + a.duration, 0),
-    avgPace: (activities.reduce((sum, a) => sum + parseFloat(a.pace), 0) / activities.length).toFixed(2),
-    totalElevation: activities.reduce((sum, a) => sum + a.elevation, 0)
-  } : null;
+                try {
+                    const proxyUrl = 'https://corsproxy.io/?';
+                    const tokenUrl = 'https://www.strava.com/oauth/token';
+                    
+                    const params = new URLSearchParams({
+                        client_id: clientId.trim(),
+                        client_secret: clientSecret.trim(),
+                        code: authCode.trim(),
+                        grant_type: 'authorization_code'
+                    });
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 p-4 sm:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <h1 className="text-3xl font-bold text-orange-600 mb-2 flex items-center gap-2">
-            <Activity className="w-8 h-8" />
-            Strava Run Analyzer
-          </h1>
-          <p className="text-gray-600 mb-6">Analyze your last 20 run and trail run activities</p>
+                    const response = await fetch(proxyUrl + encodeURIComponent(tokenUrl), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: params.toString()
+                    });
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2 text-sm">
-              <AlertCircle className="w-4 h-4" />
-              How to get your access token:
-            </h3>
-            <ol className="text-xs text-blue-800 space-y-1 ml-5 list-decimal">
-              <li>Go to <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener noreferrer" className="underline font-medium">Strava API Settings</a></li>
-              <li>Create an app (use http://localhost for the callback URL)</li>
-              <li>Copy your Client ID and visit this URL (replace YOUR_CLIENT_ID):</li>
-            </ol>
-            <code className="text-xs bg-blue-100 px-2 py-1 rounded mt-2 block break-all">
-              https://www.strava.com/oauth/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=activity:read_all
-            </code>
-            <p className="text-xs text-blue-800 mt-2">After authorizing, you'll need to exchange the code for a token using your Client Secret.</p>
-          </div>
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Token exchange failed. Check your credentials and code.');
+                    }
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Strava Access Token
-              </label>
-              <input
-                type="text"
-                value={accessToken}
-                onChange={(e) => setAccessToken(e.target.value)}
-                placeholder="Paste your access token here"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
-              />
-            </div>
+                    const data = await response.json();
+                    
+                    if (data.access_token) {
+                        setAccessToken(data.access_token);
+                        setStep('analyze');
+                        setError('');
+                    } else {
+                        throw new Error('No access token received');
+                    }
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setExchanging(false);
+                }
+            };
 
-            <button
-              onClick={fetchActivities}
-              disabled={loading}
-              className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition font-semibold"
-            >
-              {loading ? 'Loading Activities...' : 'Fetch My Activities'}
-            </button>
+            const fetchActivities = async () => {
+                if (!accessToken) {
+                    setError('No access token available');
+                    return;
+                }
 
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                <strong>Error:</strong> {error}
-              </div>
-            )}
-          </div>
-        </div>
+                setLoading(true);
+                setError('');
 
-        {stats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <p className="text-gray-500 text-xs mb-1">Total Distance</p>
-              <p className="text-2xl font-bold text-orange-600">{stats.totalDistance}</p>
-              <p className="text-gray-400 text-xs">km</p>
-            </div>
+                try {
+                    const proxyUrl = 'https://corsproxy.io/?';
+                    const stravaUrl = 'https://www.strava.com/api/v3/athlete/activities?per_page=100';
+                    
+                    const response = await fetch(proxyUrl + encodeURIComponent(stravaUrl), {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    });
 
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <p className="text-gray-500 text-xs mb-1">Total Time</p>
-              <p className="text-2xl font-bold text-orange-600">{Math.round(stats.totalTime / 60)}</p>
-              <p className="text-gray-400 text-xs">hours</p>
-            </div>
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            throw new Error('Access token expired. Please get a new authorization code.');
+                        }
+                        throw new Error(`Failed to fetch activities (Status: ${response.status})`);
+                    }
 
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <p className="text-gray-500 text-xs mb-1">Avg Pace</p>
-              <p className="text-2xl font-bold text-orange-600">{stats.avgPace}</p>
-              <p className="text-gray-400 text-xs">min/km</p>
-            </div>
+                    const data = await response.json();
+                    
+                    if (!Array.isArray(data)) {
+                        throw new Error('Unexpected response format from Strava API');
+                    }
 
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <p className="text-gray-500 text-xs mb-1">Total Elevation</p>
-              <p className="text-2xl font-bold text-orange-600">{stats.totalElevation}</p>
-              <p className="text-gray-400 text-xs">meters</p>
-            </div>
-          </div>
-        )}
+                    const runActivities = data
+                        .filter(activity => activity.type === 'Run' || activity.type === 'TrailRun')
+                        .slice(0, 20)
+                        .map(activity => ({
+                            id: activity.id,
+                            name: activity.name,
+                            type: activity.type,
+                            date: new Date(activity.start_date).toLocaleDateString(),
+                            distance: (activity.distance / 1000).toFixed(2),
+                            duration: Math.round(activity.moving_time / 60),
+                            pace: (activity.moving_time / 60 / (activity.distance / 1000)).toFixed(2),
+                            elevation: Math.round(activity.total_elevation_gain)
+                        }));
 
-        {activities.length > 0 && (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="bg-white rounded-lg shadow-md p-4">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">Distance Over Time</h2>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={activities.slice().reverse()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="distance" stroke="#ea580c" strokeWidth={2} name="Distance (km)" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+                    if (runActivities.length === 0) {
+                        setError('No run or trail run activities found in your last 100 activities.');
+                    } else {
+                        setActivities(runActivities);
+                    }
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
 
-              <div className="bg-white rounded-lg shadow-md p-4">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">Pace Analysis</h2>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={activities.slice().reverse()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="pace" fill="#fb923c" name="Pace (min/km)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            const stats = activities.length > 0 ? {
+                totalDistance: activities.reduce((sum, a) => sum + parseFloat(a.distance), 0).toFixed(2),
+                totalTime: activities.reduce((sum, a) => sum + a.duration, 0),
+                avgPace: (activities.reduce((sum, a) => sum + parseFloat(a.pace), 0) / activities.length).toFixed(2),
+                totalElevation: activities.reduce((sum, a) => sum + a.elevation, 0)
+            } : null;
 
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Activity Details</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-gray-200">
-                      <th className="text-left py-2 px-2 text-gray-600 font-semibold">Date</th>
-                      <th className="text-left py-2 px-2 text-gray-600 font-semibold">Name</th>
-                      <th className="text-left py-2 px-2 text-gray-600 font-semibold">Type</th>
-                      <th className="text-right py-2 px-2 text-gray-600 font-semibold">Distance (km)</th>
-                      <th className="text-right py-2 px-2 text-gray-600 font-semibold">Time (min)</th>
-                      <th className="text-right py-2 px-2 text-gray-600 font-semibold">Pace</th>
-                      <th className="text-right py-2 px-2 text-gray-600 font-semibold">Elev (m)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activities.map((activity) => (
-                      <tr key={activity.id} className="border-b border-gray-100 hover:bg-orange-50">
-                        <td className="py-2 px-2">{activity.date}</td>
-                        <td className="py-2 px-2 font-medium">{activity.name}</td>
-                        <td className="py-2 px-2">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            activity.type === 'TrailRun' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {activity.type === 'TrailRun' ? 'Trail' : 'Run'}
-                          </span>
-                        </td>
-                        <td className="py-2 px-2 text-right">{activity.distance}</td>
-                        <td className="py-2 px-2 text-right">{activity.duration}</td>
-                        <td className="py-2 px-2 text-right">{activity.pace}</td>
-                        <td className="py-2 px-2 text-right">{activity.elevation}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
+            const redirectUri = getRedirectUri();
 
-export default StravaAnalyzer;
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 p-4 sm:p-8">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                            <h1 className="text-3xl font-bold text-orange-600 mb-2 flex items-center gap-2">
+                                <ActivityIcon />
+                                Strava Run Analyzer
+                            </h1>
+                            <p className="text-gray-600 mb-6">Analyze your last 20 run and trail run activities</p>
+
+                            {step === 'setup' && (
+                                <div className="space-y-4">
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2 text-sm">
+                                            <AlertIcon />
+                                            Setup Instructions:
+                                        </h3>
+                                        <ol className="text-xs text-blue-800 space-y-2 ml-5 list-decimal">
+                                            <li>
+                                                Go to <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener noreferrer" className="underline font-medium">Strava API Settings</a> and create an API application
+                                                <ul className="ml-4 mt-1 list-disc">
+                                                    <li>Application Name: anything you want</li>
+                                                    <li>Website: {window.location.origin}</li>
+                                                    <li>Authorization Callback Domain: {window.location.hostname}</li>
+                                                </ul>
+                                            </li>
+                                            <li className="mt-2">Copy your <strong>Client ID</strong> and paste it below</li>
+                                            <li className="mt-2">Click "Authorize with Strava" - you'll be redirected back here automatically!</li>
+                                        </ol>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Client ID
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={clientId}
+                                            onChange={(e) => setClientId(e.target.value)}
+                                            placeholder="Your Strava Client ID"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                                        />
+                                    </div>
+
+                                    {clientId && (
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                            <p className="text-sm font-medium text-green-900 mb-2">Ready to Authorize!</p>
+                                            <a
+                                                href={`https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=force&scope=activity:read_all`}
+                                                className="inline-block px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-medium text-sm"
+                                            >
+                                                Authorize with Strava
+                                            </a>
+                                            <p className="text-xs text-green-800 mt-2">
+                                                You'll be redirected back here automatically after authorizing!
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {step === 'exchange' && (
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <KeyIcon />
+                                        <h2 className="text-lg font-semibold text-gray-800">Exchange Authorization Code for Token</h2>
+                                    </div>
+
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <p className="text-sm text-green-800">
+                                            ✓ Authorization code received! Now enter your Client Secret to complete the process.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Client ID
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={clientId}
+                                            onChange={(e) => setClientId(e.target.value)}
+                                            placeholder="Your Strava Client ID"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Client Secret
+                                        </label>
+                                        <input
+                                            type="password"
+                                            value={clientSecret}
+                                            onChange={(e) => setClientSecret(e.target.value)}
+                                            placeholder="Your Strava Client Secret (from API settings)"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Authorization Code (auto-filled)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={authCode}
+                                            onChange={(e) => setAuthCode(e.target.value)}
+                                            placeholder="Authorization code"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-gray-50"
+                                            readOnly
+                                        />
+                                    </div>
+
+                                    <button
+                                        onClick={exchangeToken}
+                                        disabled={exchanging}
+                                        className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition font-semibold"
+                                    >
+                                        {exchanging ? 'Exchanging...' : 'Get Access Token'}
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setStep('setup');
+                                            setAuthCode('');
+                                        }}
+                                        className="w-full px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                                    >
+                                        ← Back to Setup
+                                    </button>
+
+                                    {error && (
+                                        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                                            <strong>Error:</strong> {error}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {step === 'analyze' && (
+                                <div className="space-y-4">
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <p className="text-sm text-green-800">
+                                            ✓ Access token obtained successfully! Click below to fetch your activities.
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        onClick={fetchActivities}
+                                        disabled={loading}
+                                        className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition font-semibold"
+                                    >
+                                        {loading ? 'Loading Activities...' : 'Fetch My Activities'}
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setStep('setup');
+                                            setAccessToken('');
+                                            setActivities([]);
+                                            setAuthCode('');
+                                        }}
+                                        className="w-full px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm"
+                                    >
+                                        Start Over
+                                    </button>
+
+                                    {error && (
+                                        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                                            <strong>Error:</strong> {error}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {stats && (
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                                <div className="bg-white rounded-lg shadow-md p-4">
+                                    <p className="text-gray-500 text-xs mb-1">Total Distance</p>
+                                    <p className="text-2xl font-bold text-orange-600">{stats.totalDistance}</p>
+                                    <p className="text-gray-400 text-xs">km</p>
+                                </div>
+
+                                <div className="bg-white rounded-lg shadow-md p-4">
+                                    <p className="text-gray-500 text-xs mb-1">Total Time</p>
+                                    <p className="text-2xl font-bold text-orange-600">{Math.round(stats.totalTime / 60)}</p>
+                                    <p className="text-gray-400 text-xs">hours</p>
+                                </div>
+
+                                <div className="bg-white rounded-lg shadow-md p-4">
+                                    <p className="text-gray-500 text-xs mb-1">Avg Pace</p>
+                                    <p className="text-2xl font-bold text-orange-600">{stats.avgPace}</p>
+                                    <p className="text-gray-400 text-xs">min/km</p>
+                                </div>
+
+                                <div className="bg-white rounded-lg shadow-md p-4">
+                                    <p className="text-gray-500 text-xs mb-1">Total Elevation</p>
+                                    <p className="text-2xl font-bold text-orange-600">{stats.totalElevation}</p>
+                                    <p className="text-gray-400 text-xs">meters</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {activities.length > 0 && (
+                            <>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                    <div className="bg-white rounded-lg shadow-md p-4">
+                                        <h2 className="text-lg font-bold text-gray-800 mb-4">Distance Over Time</h2>
+                                        <ResponsiveContainer width="100%" height={250}>
+                                            <LineChart data={activities.slice().reverse()}>
+                                                <CartesianGrid strokeDasharray="3 3" />
+                                                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                                                <YAxis tick={{ fontSize: 11 }} />
+                                                <Tooltip />
+                                                <Legend />
+                                                <Line type="monotone" dataKey="distance" stroke="#ea580c" strokeWidth={2} name="Distance (km)" />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+
+                                    <div className="bg-white rounded-lg shadow-md p-4">
+                                        <h2 className="text-lg font-bold text-gray-800 mb-4">Pace Analysis</h2>
+                                        <ResponsiveContainer width="100%" height={250}>
+                                            <BarChart data={activities.slice().reverse()}>
+                                                <CartesianGrid strokeDasharray="3 3" />
+                                                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                                                <YAxis tick={{ fontSize: 11 }} />
+                                                <Tooltip />
+                                                <Legend />
+                                                <Bar dataKey="pace" fill="#fb923c" name="Pace (min/km)" />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-lg shadow-md p-4">
+                                    <h2 className="text-lg font-bold text-gray-800 mb-4">Activity Details</h2>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b-2 border-gray-200">
+                                                    <th className="text-left py-2 px-2 text-gray-600 font-semibold">Date</th>
+                                                    <th className="text-left py-2 px-2 text-gray-600 font-semibold">Name</th>
+                                                    <th className="text-left py-2 px-2 text-gray-600 font-semibold">Type</th>
+                                                    <th className="text-right py-2 px-2 text-gray-600 font-semibold">Distance (km)</th>
+                                                    <th className="text-right py-2 px-2 text-gray-600 font-semibold">Time (min)</th>
+                                                    <th className="text-right py-2 px-2 text-gray-600 font-semibold">Pace</th>
+                                                    <th className="text-right py-2 px-2 text-gray-600 font-semibold">Elev (m)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {activities.map((activity) => (
+                                                    <tr key={activity.id} className="border-b border-gray-100 hover:bg-orange-50">
+                                                        <td className="py-2 px-2">{activity.date}</td>
+                                                        <td className="py-2 px-2 font-medium">{activity.name}</td>
+                                                        <td className="py-2 px-2">
+                                                            <span className={`px-2 py-1 rounded-full text-xs ${
+                                                                activity.type === 'TrailRun' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                                                            }`}>
+                                                                {activity.type === 'TrailRun' ? 'Trail' : 'Run'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-2 px-2 text-right">{activity.distance}</td>
+                                                        <td className="py-2 px-2 text-right">{activity.duration}</td>
+                                                        <td className="py-2 px-2 text-right">{activity.pace}</td>
+                                                        <td className="py-2 px-2 text-right">{activity.elevation}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<StravaAnalyzer />, document.getElementById('root'));
+    </script>
+</body>
+</html>
