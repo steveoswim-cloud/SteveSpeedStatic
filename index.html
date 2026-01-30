@@ -167,8 +167,8 @@
     <!-- Login Section -->
     <div id="loginSection">
         <div class="card">
-            <h1>Strava Activities Viewer</h1>
-            <p>Connect your Strava account to view your recent trail runs with detailed speed and grade info.</p>
+            <h1>UTS 100k Prep by SteveSpeed</h1>
+            <p>Connect your Strava account to view your recent runs with pace at grade details.</p>
             <div id="loginError" class="error hidden"></div>
             <button onclick="login()">Connect with Strava</button>
         </div>
@@ -177,8 +177,8 @@
     <!-- Main Section -->
     <div id="mainSection" class="hidden">
         <div class="card">
-            <h1>My Recent Trail Runs</h1>
-            <p>Your your recent trail runs - click to view detailed speed and grade info</p>
+            <h1>My Recent Running Activities</h1>
+            <p>Your running and trail running activities - click to view pace at grade details splits</p>
             <button onclick="logout()">Disconnect</button>
         </div>
         
@@ -189,6 +189,10 @@
         </div>
         
         <div id="activitiesSection" class="hidden"></div>
+        
+        <div id="loadMoreContainer" class="card hidden" style="text-align: center;">
+            <button id="loadMoreBtn" onclick="loadMoreActivities()">Load More Activities</button>
+        </div>
     </div>
 
     <script>
@@ -200,6 +204,8 @@
         let accessToken = null;
         let activities = [];
         let expandedActivities = {};
+        let currentPage = 1;
+        let hasMoreActivities = true;
 
         // Check if already logged in
         window.onload = function() {
@@ -245,6 +251,8 @@
             accessToken = null;
             activities = [];
             expandedActivities = {};
+            currentPage = 1;
+            hasMoreActivities = true;
             showLoginSection();
         }
 
@@ -280,9 +288,27 @@
         function fetchActivities() {
             document.getElementById('loadingSection').classList.remove('hidden');
             document.getElementById('activitiesSection').classList.add('hidden');
+            document.getElementById('loadMoreContainer').classList.add('hidden');
             document.getElementById('mainError').classList.add('hidden');
+            
+            currentPage = 1;
+            activities = [];
+            hasMoreActivities = true;
 
-            fetch('https://www.strava.com/api/v3/athlete/activities?per_page=200', {
+            loadActivitiesPage(currentPage);
+        }
+
+        function loadMoreActivities() {
+            var loadMoreBtn = document.getElementById('loadMoreBtn');
+            loadMoreBtn.disabled = true;
+            loadMoreBtn.textContent = 'Loading...';
+            
+            currentPage++;
+            loadActivitiesPage(currentPage);
+        }
+
+        function loadActivitiesPage(page) {
+            fetch('https://www.strava.com/api/v3/athlete/activities?per_page=200&page=' + page, {
                 headers: {
                     'Authorization': 'Bearer ' + accessToken
                 }
@@ -298,15 +324,42 @@
                 return response.json();
             })
             .then(data => {
+                // Check if we got any activities back
+                if (data.length === 0) {
+                    hasMoreActivities = false;
+                }
+                
                 // Filter for only Run and Trail Run activities
-                activities = data.filter(function(activity) {
+                var newRuns = data.filter(function(activity) {
                     return activity.type === 'Run' || activity.type === 'TrailRun';
-                }).slice(0, 99); // Take first 50 trail runs
+                });
+                
+                // Add new runs to existing activities
+                activities = activities.concat(newRuns);
+                
                 displayActivities(activities);
+                
+                // Show or hide load more button
+                var loadMoreContainer = document.getElementById('loadMoreContainer');
+                var loadMoreBtn = document.getElementById('loadMoreBtn');
+                
+                if (hasMoreActivities) {
+                    loadMoreContainer.classList.remove('hidden');
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.textContent = 'Load More Activities';
+                } else {
+                    loadMoreContainer.classList.add('hidden');
+                }
+                
+                document.getElementById('loadingSection').classList.add('hidden');
             })
             .catch(err => {
                 showError('mainError', 'Error fetching activities: ' + err.message);
                 document.getElementById('loadingSection').classList.add('hidden');
+                
+                var loadMoreBtn = document.getElementById('loadMoreBtn');
+                loadMoreBtn.disabled = false;
+                loadMoreBtn.textContent = 'Load More Activities';
             });
         }
 
