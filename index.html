@@ -596,13 +596,13 @@
             for (var i = 0; i <= curvePoints; i++) {
                 if (i <= (curvePoints / 2)) {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = -0.00839 * grade * grade - 0.0981 * grade + 7.07;
+                    var speed = -0.00927 * grade * grade - 0.108 * grade + 7.81;
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
                 } else {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = -0.264 * grade + 7.05;
+                    var speed = -0.229 * grade + 7.79;
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
