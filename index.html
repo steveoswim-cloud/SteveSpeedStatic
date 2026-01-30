@@ -421,22 +421,19 @@
             html += '<tr>';
             html += '<th>KM</th>';
             html += '<th>Time</th>';
-            html += '<th>Pace</th>';
-            html += '<th>Elevation</th>';
+            html += '<th>Grade</th>';
             html += '</tr>';
             
             for (var i = 0; i < activity.splits_metric.length; i++) {
                 var split = activity.splits_metric[i];
                 var km = split.split;
                 var time = formatTime(split.elapsed_time);
-                var pace = formatPace(split.elapsed_time);
-                var elevChange = formatElevation(split.elevation_difference);
+                var grade = formatGrade(split.elevation_difference);
                 
                 html += '<tr>';
                 html += '<td><strong>' + km + '</strong></td>';
                 html += '<td>' + time + '</td>';
-                html += '<td>' + pace + '</td>';
-                html += '<td>' + elevChange + '</td>';
+                html += '<td>' + grade + '</td>';
                 html += '</tr>';
             }
             
@@ -450,21 +447,17 @@
             return mins + ':' + (secs < 10 ? '0' : '') + secs;
         }
 
-        function formatPace(seconds) {
-            // seconds per kilometer
-            var mins = Math.floor(seconds / 60);
-            var secs = Math.floor(seconds % 60);
-            return mins + ':' + (secs < 10 ? '0' : '') + secs + '/km';
-        }
-
-        function formatElevation(meters) {
-            var rounded = Math.round(meters);
-            if (rounded > 0) {
-                return '+' + rounded + ' m';
-            } else if (rounded < 0) {
-                return rounded + ' m';
+        function formatGrade(elevationMeters) {
+            // Percent grade = elevation gain / 10
+            var grade = elevationMeters / 10;
+            var rounded = grade.toFixed(1);
+            
+            if (grade > 0) {
+                return '+' + rounded + '%';
+            } else if (grade < 0) {
+                return rounded + '%';
             } else {
-                return '0 m';
+                return '0.0%';
             }
         }
 
