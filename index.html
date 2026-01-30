@@ -594,11 +594,19 @@
             
             var curvePoints = 100;
             for (var i = 0; i <= curvePoints; i++) {
-                var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                var speed = -0.0264 * grade * grade - 0.0165 * grade + 9.7922;
+                if (i <= (curvePoints / 2)) {
+                    var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
+                    var speed = -0.00839 * grade * grade - 0.0981 * grade + 7.07;
                 
-                var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
-                var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
+                    var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
+                    var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
+                } else {
+                    var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
+                    var speed = -0.0264 * grade + 7.05;
+                
+                    var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
+                    var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
+                }
                 
                 if (i === 0) {
                     ctx.moveTo(x, y);
