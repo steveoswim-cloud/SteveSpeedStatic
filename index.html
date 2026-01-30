@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Activity, TrendingUp, Calendar, Clock, AlertCircle } from 'lucide-react';
+import { Activity, TrendingUp, Clock, AlertCircle } from 'lucide-react';
 
 const StravaAnalyzer = () => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [accessToken, setAccessToken] = useState('');
-  const [tokenInput, setTokenInput] = useState('');
 
   const fetchActivities = async () => {
-    if (!accessToken) {
+    if (!accessToken || accessToken.trim() === '') {
       setError('Please enter your Strava access token');
       return;
     }
@@ -19,13 +18,12 @@ const StravaAnalyzer = () => {
     setError('');
 
     try {
-      // Using a CORS proxy to bypass browser restrictions
       const proxyUrl = 'https://corsproxy.io/?';
       const stravaUrl = 'https://www.strava.com/api/v3/athlete/activities?per_page=100';
       
       const response = await fetch(proxyUrl + encodeURIComponent(stravaUrl), {
         headers: {
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${accessToken.trim()}`
         }
       });
 
@@ -53,8 +51,7 @@ const StravaAnalyzer = () => {
           distance: (activity.distance / 1000).toFixed(2),
           duration: Math.round(activity.moving_time / 60),
           pace: (activity.moving_time / 60 / (activity.distance / 1000)).toFixed(2),
-          elevation: Math.round(activity.total_elevation_gain),
-          avgHeartRate: activity.average_heartrate || 0
+          elevation: Math.round(activity.total_elevation_gain)
         }));
 
       if (runActivities.length === 0) {
@@ -70,11 +67,6 @@ const StravaAnalyzer = () => {
     }
   };
 
-  const handleSetToken = () => {
-    setAccessToken(tokenInput);
-    setError('');
-  };
-
   const stats = activities.length > 0 ? {
     totalDistance: activities.reduce((sum, a) => sum + parseFloat(a.distance), 0).toFixed(2),
     totalTime: activities.reduce((sum, a) => sum + a.duration, 0),
@@ -83,31 +75,29 @@ const StravaAnalyzer = () => {
   } : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
-          <h1 className="text-4xl font-bold text-orange-600 mb-2 flex items-center gap-3">
-            <Activity className="w-10 h-10" />
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <h1 className="text-3xl font-bold text-orange-600 mb-2 flex items-center gap-2">
+            <Activity className="w-8 h-8" />
             Strava Run Analyzer
           </h1>
           <p className="text-gray-600 mb-6">Analyze your last 20 run and trail run activities</p>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
+            <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2 text-sm">
+              <AlertCircle className="w-4 h-4" />
               How to get your access token:
             </h3>
-            <ol className="text-sm text-blue-800 space-y-1 ml-6 list-decimal">
-              <li>Go to <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener noreferrer" className="underline">Strava API Settings</a></li>
-              <li>Create an app if you haven't (use any website URL like http://localhost)</li>
-              <li>Use this URL in your browser, replacing YOUR_CLIENT_ID:<br/>
-                <code className="text-xs bg-blue-100 px-2 py-1 rounded mt-1 block">
-                  https://www.strava.com/oauth/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=activity:read_all
-                </code>
-              </li>
-              <li>Authorize and copy the 'code' from the URL</li>
-              <li>Use curl or Postman to exchange the code for a token with your client_id and client_secret</li>
+            <ol className="text-xs text-blue-800 space-y-1 ml-5 list-decimal">
+              <li>Go to <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener noreferrer" className="underline font-medium">Strava API Settings</a></li>
+              <li>Create an app (use http://localhost for the callback URL)</li>
+              <li>Copy your Client ID and visit this URL (replace YOUR_CLIENT_ID):</li>
             </ol>
+            <code className="text-xs bg-blue-100 px-2 py-1 rounded mt-2 block break-all">
+              https://www.strava.com/oauth/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=activity:read_all
+            </code>
+            <p className="text-xs text-blue-800 mt-2">After authorizing, you'll need to exchange the code for a token using your Client Secret.</p>
           </div>
 
           <div className="space-y-4">
@@ -115,33 +105,25 @@ const StravaAnalyzer = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Strava Access Token
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="Enter your Strava access token"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-                <button
-                  onClick={handleSetToken}
-                  className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
-                >
-                  Set Token
-                </button>
-              </div>
+              <input
+                type="text"
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
+                placeholder="Paste your access token here"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+              />
             </div>
 
             <button
               onClick={fetchActivities}
-              disabled={loading || !accessToken}
-              className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition font-semibold"
+              disabled={loading}
+              className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition font-semibold"
             >
-              {loading ? 'Loading...' : 'Fetch Activities'}
+              {loading ? 'Loading Activities...' : 'Fetch My Activities'}
             </button>
 
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                 <strong>Error:</strong> {error}
               </div>
             )}
@@ -149,63 +131,43 @@ const StravaAnalyzer = () => {
         </div>
 
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500 text-sm">Total Distance</p>
-                  <p className="text-3xl font-bold text-orange-600">{stats.totalDistance}</p>
-                  <p className="text-gray-400 text-xs">kilometers</p>
-                </div>
-                <TrendingUp className="w-8 h-8 text-orange-300" />
-              </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <p className="text-gray-500 text-xs mb-1">Total Distance</p>
+              <p className="text-2xl font-bold text-orange-600">{stats.totalDistance}</p>
+              <p className="text-gray-400 text-xs">km</p>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500 text-sm">Total Time</p>
-                  <p className="text-3xl font-bold text-orange-600">{Math.round(stats.totalTime / 60)}</p>
-                  <p className="text-gray-400 text-xs">hours</p>
-                </div>
-                <Clock className="w-8 h-8 text-orange-300" />
-              </div>
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <p className="text-gray-500 text-xs mb-1">Total Time</p>
+              <p className="text-2xl font-bold text-orange-600">{Math.round(stats.totalTime / 60)}</p>
+              <p className="text-gray-400 text-xs">hours</p>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500 text-sm">Avg Pace</p>
-                  <p className="text-3xl font-bold text-orange-600">{stats.avgPace}</p>
-                  <p className="text-gray-400 text-xs">min/km</p>
-                </div>
-                <Activity className="w-8 h-8 text-orange-300" />
-              </div>
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <p className="text-gray-500 text-xs mb-1">Avg Pace</p>
+              <p className="text-2xl font-bold text-orange-600">{stats.avgPace}</p>
+              <p className="text-gray-400 text-xs">min/km</p>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500 text-sm">Total Elevation</p>
-                  <p className="text-3xl font-bold text-orange-600">{stats.totalElevation}</p>
-                  <p className="text-gray-400 text-xs">meters</p>
-                </div>
-                <TrendingUp className="w-8 h-8 text-orange-300" />
-              </div>
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <p className="text-gray-500 text-xs mb-1">Total Elevation</p>
+              <p className="text-2xl font-bold text-orange-600">{stats.totalElevation}</p>
+              <p className="text-gray-400 text-xs">meters</p>
             </div>
           </div>
         )}
 
         {activities.length > 0 && (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Distance Over Time</h2>
-                <ResponsiveContainer width="100%" height={300}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Distance Over Time</h2>
+                <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={activities.slice().reverse()}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis />
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip />
                     <Legend />
                     <Line type="monotone" dataKey="distance" stroke="#ea580c" strokeWidth={2} name="Distance (km)" />
@@ -213,13 +175,13 @@ const StravaAnalyzer = () => {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Pace Analysis</h2>
-                <ResponsiveContainer width="100%" height={300}>
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Pace Analysis</h2>
+                <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={activities.slice().reverse()}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis />
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip />
                     <Legend />
                     <Bar dataKey="pace" fill="#fb923c" name="Pace (min/km)" />
@@ -228,37 +190,37 @@ const StravaAnalyzer = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Activity Details</h2>
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Activity Details</h2>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b-2 border-gray-200">
-                      <th className="text-left py-3 px-4 text-gray-600 font-semibold">Date</th>
-                      <th className="text-left py-3 px-4 text-gray-600 font-semibold">Name</th>
-                      <th className="text-left py-3 px-4 text-gray-600 font-semibold">Type</th>
-                      <th className="text-right py-3 px-4 text-gray-600 font-semibold">Distance (km)</th>
-                      <th className="text-right py-3 px-4 text-gray-600 font-semibold">Duration (min)</th>
-                      <th className="text-right py-3 px-4 text-gray-600 font-semibold">Pace (min/km)</th>
-                      <th className="text-right py-3 px-4 text-gray-600 font-semibold">Elevation (m)</th>
+                      <th className="text-left py-2 px-2 text-gray-600 font-semibold">Date</th>
+                      <th className="text-left py-2 px-2 text-gray-600 font-semibold">Name</th>
+                      <th className="text-left py-2 px-2 text-gray-600 font-semibold">Type</th>
+                      <th className="text-right py-2 px-2 text-gray-600 font-semibold">Distance (km)</th>
+                      <th className="text-right py-2 px-2 text-gray-600 font-semibold">Time (min)</th>
+                      <th className="text-right py-2 px-2 text-gray-600 font-semibold">Pace</th>
+                      <th className="text-right py-2 px-2 text-gray-600 font-semibold">Elev (m)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {activities.map((activity) => (
-                      <tr key={activity.id} className="border-b border-gray-100 hover:bg-orange-50 transition">
-                        <td className="py-3 px-4 text-sm">{activity.date}</td>
-                        <td className="py-3 px-4 text-sm font-medium">{activity.name}</td>
-                        <td className="py-3 px-4 text-sm">
+                      <tr key={activity.id} className="border-b border-gray-100 hover:bg-orange-50">
+                        <td className="py-2 px-2">{activity.date}</td>
+                        <td className="py-2 px-2 font-medium">{activity.name}</td>
+                        <td className="py-2 px-2">
                           <span className={`px-2 py-1 rounded-full text-xs ${
                             activity.type === 'TrailRun' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
                           }`}>
-                            {activity.type}
+                            {activity.type === 'TrailRun' ? 'Trail' : 'Run'}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-sm text-right">{activity.distance}</td>
-                        <td className="py-3 px-4 text-sm text-right">{activity.duration}</td>
-                        <td className="py-3 px-4 text-sm text-right">{activity.pace}</td>
-                        <td className="py-3 px-4 text-sm text-right">{activity.elevation}</td>
+                        <td className="py-2 px-2 text-right">{activity.distance}</td>
+                        <td className="py-2 px-2 text-right">{activity.duration}</td>
+                        <td className="py-2 px-2 text-right">{activity.pace}</td>
+                        <td className="py-2 px-2 text-right">{activity.elevation}</td>
                       </tr>
                     ))}
                   </tbody>
