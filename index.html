@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
@@ -26,6 +26,13 @@
             margin-top: 0;
         }
         
+        h2 {
+            color: #333;
+            font-size: 18px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        
         button {
             background-color: #fc5200;
             color: white;
@@ -40,13 +47,23 @@
             background-color: #e04b00;
         }
         
-        .activity {
-            border-bottom: 1px solid #eee;
-            padding: 15px 0;
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
         }
         
-        .activity:last-child {
-            border-bottom: none;
+        .activity {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .activity:hover {
+            border-color: #fc5200;
+            box-shadow: 0 2px 8px rgba(252, 82, 0, 0.1);
         }
         
         .activity-name {
@@ -70,6 +87,46 @@
             font-size: 14px;
         }
         
+        .activity-expanded {
+            border-color: #fc5200;
+        }
+        
+        .splits-container {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .splits-loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .splits-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        .splits-table th {
+            background-color: #f8f8f8;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .splits-table td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .splits-table tr:hover {
+            background-color: #fafafa;
+        }
+        
         .error {
             background-color: #fee;
             border: 1px solid #fcc;
@@ -88,6 +145,30 @@
             padding: 40px;
             color: #666;
         }
+        
+        .expand-icon {
+            float: right;
+            color: #fc5200;
+            font-weight: bold;
+        }
+        
+        .no-splits {
+            padding: 15px;
+            text-align: center;
+            color: #999;
+            font-style: italic;
+        }
+        
+        @media (max-width: 600px) {
+            .splits-table {
+                font-size: 12px;
+            }
+            
+            .splits-table th,
+            .splits-table td {
+                padding: 6px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -95,7 +176,7 @@
     <div id="loginSection">
         <div class="card">
             <h1>Strava Activities Viewer</h1>
-            <p>Connect your Strava account to view your last 5 activities.</p>
+            <p>Connect your Strava account to view your last 5 activities with detailed kilometer splits.</p>
             <div id="loginError" class="error hidden"></div>
             <button onclick="login()">Connect with Strava</button>
         </div>
@@ -105,6 +186,7 @@
     <div id="mainSection" class="hidden">
         <div class="card">
             <h1>My Recent Activities</h1>
+            <p>Click on any activity to view kilometer-by-kilometer splits</p>
             <button onclick="logout()">Disconnect</button>
         </div>
         
@@ -114,7 +196,7 @@
             Loading activities...
         </div>
         
-        <div id="activitiesSection" class="card hidden"></div>
+        <div id="activitiesSection" class="hidden"></div>
     </div>
 
     <script>
@@ -124,6 +206,8 @@
         const REDIRECT_URI = window.location.href.split('?')[0];
 
         let accessToken = null;
+        let activities = [];
+        let expandedActivities = {};
 
         // Check if already logged in
         window.onload = function() {
@@ -157,7 +241,7 @@
                 '&response_type=code' +
                 '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
                 '&approval_prompt=auto' +
-                '&scope=read,activity:read' +
+                '&scope=read,activity:read_all' +
                 '&state=' + state;
             
             window.location.href = authUrl;
@@ -167,6 +251,8 @@
             localStorage.removeItem('strava_token');
             localStorage.removeItem('strava_token_expiry');
             accessToken = null;
+            activities = [];
+            expandedActivities = {};
             showLoginSection();
         }
 
@@ -219,7 +305,8 @@
                 }
                 return response.json();
             })
-            .then(activities => {
+            .then(data => {
+                activities = data;
                 displayActivities(activities);
             })
             .catch(err => {
@@ -234,28 +321,29 @@
             container.classList.remove('hidden');
             
             if (activities.length === 0) {
-                container.innerHTML = '<p>No activities found</p>';
+                container.innerHTML = '<div class="card"><p>No activities found</p></div>';
                 return;
             }
 
             let html = '';
-            activities.forEach(function(activity) {
-                const date = new Date(activity.start_date).toLocaleDateString('en-US', {
+            for (var i = 0; i < activities.length; i++) {
+                var activity = activities[i];
+                var date = new Date(activity.start_date).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
                     year: 'numeric'
                 });
                 
-                const distance = (activity.distance / 1000).toFixed(2) + ' km';
+                var distance = (activity.distance / 1000).toFixed(2) + ' km';
                 
-                const hours = Math.floor(activity.moving_time / 3600);
-                const minutes = Math.floor((activity.moving_time % 3600) / 60);
-                const duration = hours > 0 ? hours + 'h ' + minutes + 'm' : minutes + 'm';
+                var hours = Math.floor(activity.moving_time / 3600);
+                var minutes = Math.floor((activity.moving_time % 3600) / 60);
+                var duration = hours > 0 ? hours + 'h ' + minutes + 'm' : minutes + 'm';
                 
-                const elevation = Math.round(activity.total_elevation_gain) + ' m';
+                var elevation = Math.round(activity.total_elevation_gain) + ' m';
 
-                html += '<div class="activity">';
-                html += '<div class="activity-name">' + activity.name + '</div>';
+                html += '<div class="activity" id="activity-' + activity.id + '" onclick="toggleActivity(' + activity.id + ')">';
+                html += '<div class="activity-name">' + activity.name + '<span class="expand-icon" id="icon-' + activity.id + '">▼</span></div>';
                 html += '<span class="activity-type">' + activity.type + '</span>';
                 html += '<div class="activity-stats">';
                 html += date + ' • ';
@@ -263,14 +351,125 @@
                 html += duration + ' • ';
                 html += elevation + ' elevation';
                 html += '</div>';
+                html += '<div id="splits-' + activity.id + '" class="splits-container hidden"></div>';
                 html += '</div>';
-            });
+            }
 
             container.innerHTML = html;
         }
 
+        function toggleActivity(activityId) {
+            var splitsDiv = document.getElementById('splits-' + activityId);
+            var icon = document.getElementById('icon-' + activityId);
+            var activityDiv = document.getElementById('activity-' + activityId);
+            
+            if (expandedActivities[activityId]) {
+                // Collapse
+                splitsDiv.classList.add('hidden');
+                icon.textContent = '▼';
+                activityDiv.classList.remove('activity-expanded');
+                expandedActivities[activityId] = false;
+            } else {
+                // Expand
+                splitsDiv.classList.remove('hidden');
+                icon.textContent = '▲';
+                activityDiv.classList.add('activity-expanded');
+                expandedActivities[activityId] = true;
+                
+                // Load splits if not already loaded
+                if (!splitsDiv.getAttribute('data-loaded')) {
+                    fetchActivitySplits(activityId);
+                }
+            }
+        }
+
+        function fetchActivitySplits(activityId) {
+            var splitsDiv = document.getElementById('splits-' + activityId);
+            splitsDiv.innerHTML = '<div class="splits-loading">Loading kilometer splits...</div>';
+            
+            fetch('https://www.strava.com/api/v3/activities/' + activityId + '?include_all_efforts=false', {
+                headers: {
+                    'Authorization': 'Bearer ' + accessToken
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to fetch activity details');
+                }
+                return response.json();
+            })
+            .then(data => {
+                displaySplits(activityId, data);
+            })
+            .catch(err => {
+                splitsDiv.innerHTML = '<div class="no-splits">Error loading splits: ' + err.message + '</div>';
+            });
+        }
+
+        function displaySplits(activityId, activity) {
+            var splitsDiv = document.getElementById('splits-' + activityId);
+            splitsDiv.setAttribute('data-loaded', 'true');
+            
+            // Check if activity has splits_metric (kilometer splits)
+            if (!activity.splits_metric || activity.splits_metric.length === 0) {
+                splitsDiv.innerHTML = '<div class="no-splits">No kilometer split data available for this activity</div>';
+                return;
+            }
+            
+            var html = '<h2>Kilometer Splits</h2>';
+            html += '<table class="splits-table">';
+            html += '<tr>';
+            html += '<th>KM</th>';
+            html += '<th>Time</th>';
+            html += '<th>Pace</th>';
+            html += '<th>Elevation</th>';
+            html += '</tr>';
+            
+            for (var i = 0; i < activity.splits_metric.length; i++) {
+                var split = activity.splits_metric[i];
+                var km = split.split;
+                var time = formatTime(split.elapsed_time);
+                var pace = formatPace(split.elapsed_time);
+                var elevChange = formatElevation(split.elevation_difference);
+                
+                html += '<tr>';
+                html += '<td><strong>' + km + '</strong></td>';
+                html += '<td>' + time + '</td>';
+                html += '<td>' + pace + '</td>';
+                html += '<td>' + elevChange + '</td>';
+                html += '</tr>';
+            }
+            
+            html += '</table>';
+            splitsDiv.innerHTML = html;
+        }
+
+        function formatTime(seconds) {
+            var mins = Math.floor(seconds / 60);
+            var secs = Math.floor(seconds % 60);
+            return mins + ':' + (secs < 10 ? '0' : '') + secs;
+        }
+
+        function formatPace(seconds) {
+            // seconds per kilometer
+            var mins = Math.floor(seconds / 60);
+            var secs = Math.floor(seconds % 60);
+            return mins + ':' + (secs < 10 ? '0' : '') + secs + '/km';
+        }
+
+        function formatElevation(meters) {
+            var rounded = Math.round(meters);
+            if (rounded > 0) {
+                return '+' + rounded + ' m';
+            } else if (rounded < 0) {
+                return rounded + ' m';
+            } else {
+                return '0 m';
+            }
+        }
+
         function showError(elementId, message) {
-            const element = document.getElementById(elementId);
+            var element = document.getElementById(elementId);
             element.textContent = message;
             element.classList.remove('hidden');
         }
