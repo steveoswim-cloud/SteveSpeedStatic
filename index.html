@@ -1,351 +1,269 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Strava Run Analyzer</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.5.0/Recharts.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body>
-    <div id="root"></div>
+import React, { useState, useEffect } from 'react';
+import { Activity, Calendar, MapPin, Clock, TrendingUp } from 'lucide-react';
+
+const StravaApp = () => {
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [accessToken, setAccessToken] = useState(null);
+
+  // Strava OAuth configuration
+  const CLIENT_ID = '198838'; // Replace with your Strava Client ID
+  const REDIRECT_URI = window.location.origin + window.location.pathname;
+  const SCOPE = 'read,activity:read';
+
+  useEffect(() => {
+    // Check for access token in state
+    const stored = localStorage.getItem('strava_token');
+    const storedExpiry = localStorage.getItem('strava_token_expiry');
     
-    <script>
-        var useState = React.useState;
-        var useEffect = React.useEffect;
-        var e = React.createElement;
+    if (stored && storedExpiry && Date.now() < parseInt(storedExpiry)) {
+      setAccessToken(stored);
+    }
 
-        function StravaAnalyzer() {
-            var stateActivities = useState([]);
-            var activities = stateActivities[0];
-            var setActivities = stateActivities[1];
-            
-            var stateLoading = useState(false);
-            var loading = stateLoading[0];
-            var setLoading = stateLoading[1];
-            
-            var stateError = useState('');
-            var error = stateError[0];
-            var setError = stateError[1];
-            
-            var stateAccessToken = useState('');
-            var accessToken = stateAccessToken[0];
-            var setAccessToken = stateAccessToken[1];
-            
-            var stateStep = useState('setup');
-            var step = stateStep[0];
-            var setStep = stateStep[1];
-            
-            var stateClientId = useState('');
-            var clientId = stateClientId[0];
-            var setClientId = stateClientId[1];
-            
-            var stateClientSecret = useState('');
-            var clientSecret = stateClientSecret[0];
-            var setClientSecret = stateClientSecret[1];
-            
-            var stateAuthCode = useState('');
-            var authCode = stateAuthCode[0];
-            var setAuthCode = stateAuthCode[1];
-            
-            var stateExchanging = useState(false);
-            var exchanging = stateExchanging[0];
-            var setExchanging = stateExchanging[1];
+    // Handle OAuth redirect
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const storedState = sessionStorage.getItem('strava_state');
+    const returnedState = params.get('state');
 
-            useEffect(function() {
-                var urlParams = new URLSearchParams(window.location.search);
-                var code = urlParams.get('code');
-                if (code) {
-                    setAuthCode(code);
-                    setStep('exchange');
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                }
-            }, []);
+    if (code && storedState === returnedState) {
+      exchangeToken(code);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
-            function exchangeToken() {
-                if (!clientId || !clientSecret || !authCode) {
-                    setError('Please fill in all fields');
-                    return;
-                }
+  useEffect(() => {
+    if (accessToken) {
+      fetchActivities();
+    }
+  }, [accessToken]);
 
-                setExchanging(true);
-                setError('');
+  const generateState = () => {
+    return Math.random().toString(36).substring(2, 15);
+  };
 
-                var proxyUrl = 'https://corsproxy.io/?';
-                var tokenUrl = 'https://www.strava.com/oauth/token';
-                
-                var params = new URLSearchParams({
-                    client_id: clientId.trim(),
-                    client_secret: clientSecret.trim(),
-                    code: authCode.trim(),
-                    grant_type: 'authorization_code'
-                });
+  const handleLogin = () => {
+    const state = generateState();
+    sessionStorage.setItem('strava_state', state);
+    
+    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&approval_prompt=auto&scope=${SCOPE}&state=${state}`;
+    window.location.href = authUrl;
+  };
 
-                fetch(proxyUrl + encodeURIComponent(tokenUrl), {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: params.toString()
-                })
-                .then(function(response) {
-                    if (!response.ok) {
-                        return response.json().then(function(errorData) {
-                            throw new Error(errorData.message || 'Token exchange failed');
-                        });
-                    }
-                    return response.json();
-                })
-                .then(function(data) {
-                    if (data.access_token) {
-                        setAccessToken(data.access_token);
-                        setStep('analyze');
-                        setError('');
-                    } else {
-                        throw new Error('No access token received');
-                    }
-                })
-                .catch(function(err) {
-                    setError(err.message);
-                })
-                .finally(function() {
-                    setExchanging(false);
-                });
-            }
+  const exchangeToken = async (code) => {
+    setLoading(true);
+    try {
+      const response = await fetch('https://www.strava.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: CLIENT_ID,
+          client_secret: '021995f1dad88dea734b29ee9ef070a6f8d82089', // Replace with your Client Secret
+          code: code,
+          grant_type: 'authorization_code'
+        })
+      });
 
-            function fetchActivities() {
-                if (!accessToken) {
-                    setError('No access token available');
-                    return;
-                }
+      const data = await response.json();
+      if (data.access_token) {
+        const expiry = Date.now() + (data.expires_in * 1000);
+        localStorage.setItem('strava_token', data.access_token);
+        localStorage.setItem('strava_token_expiry', expiry.toString());
+        setAccessToken(data.access_token);
+      } else {
+        setError('Failed to authenticate with Strava');
+      }
+    } catch (err) {
+      setError('Error during authentication: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                setLoading(true);
-                setError('');
-
-                var proxyUrl = 'https://corsproxy.io/?';
-                var stravaUrl = 'https://www.strava.com/api/v3/athlete/activities?per_page=100';
-                
-                fetch(proxyUrl + encodeURIComponent(stravaUrl), {
-                    headers: {
-                        'Authorization': 'Bearer ' + accessToken
-                    }
-                })
-                .then(function(response) {
-                    if (!response.ok) {
-                        if (response.status === 401) {
-                            throw new Error('Access token expired');
-                        }
-                        throw new Error('Failed to fetch activities');
-                    }
-                    return response.json();
-                })
-                .then(function(data) {
-                    if (!Array.isArray(data)) {
-                        throw new Error('Unexpected response format');
-                    }
-
-                    var runActivities = data
-                        .filter(function(activity) { 
-                            return activity.type === 'Run' || activity.type === 'TrailRun';
-                        })
-                        .slice(0, 20)
-                        .map(function(activity) {
-                            return {
-                                id: activity.id,
-                                name: activity.name,
-                                type: activity.type,
-                                date: new Date(activity.start_date).toLocaleDateString(),
-                                distance: (activity.distance / 1000).toFixed(2),
-                                duration: Math.round(activity.moving_time / 60),
-                                pace: (activity.moving_time / 60 / (activity.distance / 1000)).toFixed(2),
-                                elevation: Math.round(activity.total_elevation_gain)
-                            };
-                        });
-
-                    if (runActivities.length === 0) {
-                        setError('No run activities found');
-                    } else {
-                        setActivities(runActivities);
-                    }
-                })
-                .catch(function(err) {
-                    setError(err.message);
-                })
-                .finally(function() {
-                    setLoading(false);
-                });
-            }
-
-            var stats = activities.length > 0 ? {
-                totalDistance: activities.reduce(function(sum, a) { return sum + parseFloat(a.distance); }, 0).toFixed(2),
-                totalTime: activities.reduce(function(sum, a) { return sum + a.duration; }, 0),
-                avgPace: (activities.reduce(function(sum, a) { return sum + parseFloat(a.pace); }, 0) / activities.length).toFixed(2),
-                totalElevation: activities.reduce(function(sum, a) { return sum + a.elevation; }, 0)
-            } : null;
-
-            var redirectUri = window.location.origin + window.location.pathname;
-            var authUrl = 'https://www.strava.com/oauth/authorize?client_id=' + clientId + 
-                          '&response_type=code&redirect_uri=' + encodeURIComponent(redirectUri) + 
-                          '&approval_prompt=force&scope=activity:read_all';
-
-            return e('div', { className: 'min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 p-4 sm:p-8' },
-                e('div', { className: 'max-w-7xl mx-auto' },
-                    e('div', { className: 'bg-white rounded-xl shadow-lg p-6 mb-6' },
-                        e('h1', { className: 'text-3xl font-bold text-orange-600 mb-2' }, 'Strava Run Analyzer'),
-                        e('p', { className: 'text-gray-600 mb-6' }, 'Analyze your last 20 run and trail run activities'),
-                        
-                        step === 'setup' && e('div', { className: 'space-y-4' },
-                            e('div', { className: 'bg-blue-50 border border-blue-200 rounded-lg p-4' },
-                                e('h3', { className: 'font-semibold text-blue-900 mb-2 text-sm' }, 'Setup Instructions:'),
-                                e('ol', { className: 'text-xs text-blue-800 space-y-2 ml-5 list-decimal' },
-                                    e('li', null, 
-                                        'Go to ',
-                                        e('a', { 
-                                            href: 'https://www.strava.com/settings/api', 
-                                            target: '_blank',
-                                            className: 'underline font-medium'
-                                        }, 'Strava API Settings'),
-                                        ' and create an API application'
-                                    ),
-                                    e('li', null, 'Copy your Client ID and paste it below'),
-                                    e('li', null, 'Click "Authorize with Strava"')
-                                )
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Client ID'),
-                                e('input', {
-                                    type: 'text',
-                                    value: clientId,
-                                    onChange: function(ev) { setClientId(ev.target.value); },
-                                    placeholder: 'Your Strava Client ID',
-                                    className: 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none'
-                                })
-                            ),
-                            clientId && e('div', { className: 'bg-green-50 border border-green-200 rounded-lg p-4' },
-                                e('p', { className: 'text-sm font-medium text-green-900 mb-2' }, 'Ready to Authorize!'),
-                                e('a', {
-                                    href: authUrl,
-                                    className: 'inline-block px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-medium text-sm'
-                                }, 'Authorize with Strava')
-                            )
-                        ),
-                        
-                        step === 'exchange' && e('div', { className: 'space-y-4' },
-                            e('div', { className: 'bg-green-50 border border-green-200 rounded-lg p-4' },
-                                e('p', { className: 'text-sm text-green-800' }, '✓ Authorization code received!')
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Client ID'),
-                                e('input', {
-                                    type: 'text',
-                                    value: clientId,
-                                    onChange: function(ev) { setClientId(ev.target.value); },
-                                    placeholder: 'Your Strava Client ID',
-                                    className: 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none'
-                                })
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Client Secret'),
-                                e('input', {
-                                    type: 'password',
-                                    value: clientSecret,
-                                    onChange: function(ev) { setClientSecret(ev.target.value); },
-                                    placeholder: 'Your Strava Client Secret',
-                                    className: 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none'
-                                })
-                            ),
-                            e('button', {
-                                onClick: exchangeToken,
-                                disabled: exchanging,
-                                className: 'w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 transition font-semibold'
-                            }, exchanging ? 'Exchanging...' : 'Get Access Token'),
-                            error && e('div', { className: 'p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm' }, 
-                                e('strong', null, 'Error: '), error
-                            )
-                        ),
-                        
-                        step === 'analyze' && e('div', { className: 'space-y-4' },
-                            e('div', { className: 'bg-green-50 border border-green-200 rounded-lg p-4' },
-                                e('p', { className: 'text-sm text-green-800' }, '✓ Access token obtained!')
-                            ),
-                            e('button', {
-                                onClick: fetchActivities,
-                                disabled: loading,
-                                className: 'w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 transition font-semibold'
-                            }, loading ? 'Loading Activities...' : 'Fetch My Activities'),
-                            error && e('div', { className: 'p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm' }, 
-                                e('strong', null, 'Error: '), error
-                            )
-                        )
-                    ),
-                    
-                    stats && e('div', { className: 'grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6' },
-                        e('div', { className: 'bg-white rounded-lg shadow-md p-4' },
-                            e('p', { className: 'text-gray-500 text-xs mb-1' }, 'Total Distance'),
-                            e('p', { className: 'text-2xl font-bold text-orange-600' }, stats.totalDistance),
-                            e('p', { className: 'text-gray-400 text-xs' }, 'km')
-                        ),
-                        e('div', { className: 'bg-white rounded-lg shadow-md p-4' },
-                            e('p', { className: 'text-gray-500 text-xs mb-1' }, 'Total Time'),
-                            e('p', { className: 'text-2xl font-bold text-orange-600' }, Math.round(stats.totalTime / 60)),
-                            e('p', { className: 'text-gray-400 text-xs' }, 'hours')
-                        ),
-                        e('div', { className: 'bg-white rounded-lg shadow-md p-4' },
-                            e('p', { className: 'text-gray-500 text-xs mb-1' }, 'Avg Pace'),
-                            e('p', { className: 'text-2xl font-bold text-orange-600' }, stats.avgPace),
-                            e('p', { className: 'text-gray-400 text-xs' }, 'min/km')
-                        ),
-                        e('div', { className: 'bg-white rounded-lg shadow-md p-4' },
-                            e('p', { className: 'text-gray-500 text-xs mb-1' }, 'Total Elevation'),
-                            e('p', { className: 'text-2xl font-bold text-orange-600' }, stats.totalElevation),
-                            e('p', { className: 'text-gray-400 text-xs' }, 'meters')
-                        )
-                    ),
-                    
-                    activities.length > 0 && e('div', { className: 'bg-white rounded-lg shadow-md p-4' },
-                        e('h2', { className: 'text-lg font-bold text-gray-800 mb-4' }, 'Activity Details'),
-                        e('div', { className: 'overflow-x-auto' },
-                            e('table', { className: 'w-full text-sm' },
-                                e('thead', null,
-                                    e('tr', { className: 'border-b-2 border-gray-200' },
-                                        e('th', { className: 'text-left py-2 px-2 text-gray-600 font-semibold' }, 'Date'),
-                                        e('th', { className: 'text-left py-2 px-2 text-gray-600 font-semibold' }, 'Name'),
-                                        e('th', { className: 'text-left py-2 px-2 text-gray-600 font-semibold' }, 'Type'),
-                                        e('th', { className: 'text-right py-2 px-2 text-gray-600 font-semibold' }, 'Distance (km)'),
-                                        e('th', { className: 'text-right py-2 px-2 text-gray-600 font-semibold' }, 'Time (min)'),
-                                        e('th', { className: 'text-right py-2 px-2 text-gray-600 font-semibold' }, 'Pace'),
-                                        e('th', { className: 'text-right py-2 px-2 text-gray-600 font-semibold' }, 'Elev (m)')
-                                    )
-                                ),
-                                e('tbody', null,
-                                    activities.map(function(activity) {
-                                        return e('tr', { key: activity.id, className: 'border-b border-gray-100 hover:bg-orange-50' },
-                                            e('td', { className: 'py-2 px-2' }, activity.date),
-                                            e('td', { className: 'py-2 px-2 font-medium' }, activity.name),
-                                            e('td', { className: 'py-2 px-2' },
-                                                e('span', { 
-                                                    className: 'px-2 py-1 rounded-full text-xs ' + 
-                                                    (activity.type === 'TrailRun' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')
-                                                }, activity.type === 'TrailRun' ? 'Trail' : 'Run')
-                                            ),
-                                            e('td', { className: 'py-2 px-2 text-right' }, activity.distance),
-                                            e('td', { className: 'py-2 px-2 text-right' }, activity.duration),
-                                            e('td', { className: 'py-2 px-2 text-right' }, activity.pace),
-                                            e('td', { className: 'py-2 px-2 text-right' }, activity.elevation)
-                                        );
-                                    })
-                                )
-                            )
-                        )
-                    )
-                )
-            );
+  const fetchActivities = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=5', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
         }
+      });
 
-        var root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(StravaAnalyzer));
-    </script>
-</body>
-</html>
+      if (!response.ok) throw new Error('Failed to fetch activities');
+      
+      const data = await response.json();
+      setActivities(data);
+    } catch (err) {
+      setError('Error fetching activities: ' + err.message);
+      if (err.message.includes('401')) {
+        localStorage.removeItem('strava_token');
+        localStorage.removeItem('strava_token_expiry');
+        setAccessToken(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('strava_token');
+    localStorage.removeItem('strava_token_expiry');
+    setAccessToken(null);
+    setActivities([]);
+  };
+
+  const formatDistance = (meters) => {
+    const km = meters / 1000;
+    return km.toFixed(2) + ' km';
+  };
+
+  const formatDuration = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const getActivityIcon = (type) => {
+    return <Activity className="w-5 h-5" />;
+  };
+
+  if (!accessToken) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
+          <div className="mb-6">
+            <div className="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Activity className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Strava Activities</h1>
+            <p className="text-gray-600">View your latest 5 activities</p>
+          </div>
+          
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+          
+          <button
+            onClick={handleLogin}
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2"
+          >
+            <Activity className="w-5 h-5" />
+            Connect with Strava
+          </button>
+          
+          <p className="text-xs text-gray-500 mt-4">
+            You'll be redirected to Strava to authorize this app
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 p-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
+                <Activity className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">My Recent Activities</h1>
+                <p className="text-gray-600 text-sm">Your last 5 Strava activities</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
+            >
+              Disconnect
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
+            <p className="text-gray-600 mt-4">Loading activities...</p>
+          </div>
+        ) : activities.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center">
+            <p className="text-gray-600">No activities found</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {activities.map((activity) => (
+              <div key={activity.id} className="bg-white rounded-lg shadow hover:shadow-lg transition p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      {getActivityIcon(activity.type)}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg text-gray-800">{activity.name}</h3>
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                        <Calendar className="w-4 h-4" />
+                        {formatDate(activity.start_date)}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full">
+                    {activity.type}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500">Distance</p>
+                      <p className="font-semibold text-gray-800">{formatDistance(activity.distance)}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500">Duration</p>
+                      <p className="font-semibold text-gray-800">{formatDuration(activity.moving_time)}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500">Elevation</p>
+                      <p className="font-semibold text-gray-800">{Math.round(activity.total_elevation_gain)} m</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default StravaApp;
