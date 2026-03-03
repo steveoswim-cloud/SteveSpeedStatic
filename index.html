@@ -596,7 +596,7 @@
             for (var i = 0; i <= curvePoints; i++) {
                 if (i <= (curvePoints / 2)) {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = 0.0083 * grade * grade - 0.1352 * grade + 5.5232;
+                    var speed = -0.0083 * grade * grade - 0.1352 * grade + 5.7048;
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
