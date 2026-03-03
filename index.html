@@ -587,7 +587,7 @@
             ctx.fillText('Speed (km/h)', 0, 0);
             ctx.restore();
             
-            // Draw reference curve: speed = -0.0264*grade^2 - 0.0165*grade + 9.7922
+            // Draw reference curve: speed = -0.0083*grade^2 - 0.1352*grade + 5.5232
             ctx.strokeStyle = '#0066cc';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -596,13 +596,13 @@
             for (var i = 0; i <= curvePoints; i++) {
                 if (i <= (curvePoints / 2)) {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = -0.00927 * grade * grade - 0.108 * grade + 7.81;
+                    var speed = 0.0083 * grade * grade - 0.1352 * grade + 5.5232;
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
                 } else {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = -0.229 * grade + 7.79;
+                    var speed = -0.0013 * grade * grade - 0.1361 * grade + 5.7048;
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
