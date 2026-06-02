@@ -493,7 +493,7 @@
                 var split = splitsToUse[i];
                 var grade = split.elevation_difference / 10; // percent grade
                 var timeMinutes = split.elapsed_time / 60;
-                var speed = (60 / timeMinutes) * (1 - 0.01 * i); // km/h adjusted by cumulative distance factor of 1% per km covered
+                var speed = (60 / timeMinutes) * (1 + (0.01 * i)); // km/h adjusted by cumulative distance factor of 1% per km covered
                 
                 dataPoints.push({
                     grade: grade,
@@ -596,13 +596,13 @@
             for (var i = 0; i <= curvePoints; i++) {
                 if (i <= (curvePoints / 2)) {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = -0.6858 * grade * grade + 16.808 * grade + 10.085; // post uts100 function
+                    var speed = -0.00006858 * grade * grade + 0.16808 * grade + 10.085; // post uts100 function
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
                 } else {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = 90.25 * grade * grade - 43.196 * grade + 10.085; // post uts100 function
+                    var speed = 0.009025 * grade * grade - .43196 * grade + 10.085; // post uts100 function
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
