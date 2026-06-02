@@ -596,13 +596,13 @@
             for (var i = 0; i <= curvePoints; i++) {
                 if (i <= (curvePoints / 2)) {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = -0.00000031 * grade * grade + 0.000653 * grade + 9.3872; // post uts100 function
+                    var speed = -0.0031 * grade * grade + 0.0653 * grade + 9.3872; // post uts100 function
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
                 } else {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = 0.00000046 * grade * grade - .003115 * grade + 9.3872; // post uts100 function
+                    var speed = 0.0046 * grade * grade - .3115 * grade + 9.3872; // post uts100 function
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
