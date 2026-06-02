@@ -493,7 +493,7 @@
                 var split = splitsToUse[i];
                 var grade = split.elevation_difference / 10; // percent grade
                 var timeMinutes = split.elapsed_time / 60;
-                var speed = (60 / timeMinutes) / (1.4605 - 0.0062 * i); // km/h adjusted by distance decay factor
+                var speed = (60 / timeMinutes) * (1 - 0.01 * i); // km/h adjusted by cumulative distance factor of 1% per km covered
                 
                 dataPoints.push({
                     grade: grade,
@@ -587,7 +587,7 @@
             ctx.fillText('Speed (km/h)', 0, 0);
             ctx.restore();
             
-            // Draw reference curve: speed = -0.0083*grade^2 - 0.1352*grade + 5.5232
+            // Draw reference curve
             ctx.strokeStyle = '#0066cc';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -596,13 +596,13 @@
             for (var i = 0; i <= curvePoints; i++) {
                 if (i <= (curvePoints / 2)) {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = -0.0083 * grade * grade - 0.1352 * grade + 5.7048;
+                    var speed = -0.6858 * grade * grade + 16.808 * grade + 10.085; // post uts100 function
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
                 } else {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = -0.0013 * grade * grade - 0.1361 * grade + 5.7048;
+                    var speed = 90.25 * grade * grade - 43.196 * grade + 10.085; // post uts100 function
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
