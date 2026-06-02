@@ -493,7 +493,7 @@
                 var split = splitsToUse[i];
                 var grade = split.elevation_difference / 10; // percent grade
                 var timeMinutes = split.elapsed_time / 60;
-                var speed = 60 / timeMinutes; // km/h
+                var speed = ( 1.4605 - 0.0062 * splitsToUse[i] ) * ( 60 / timeMinutes ); // km/h adjusted by distance decay factor
                 
                 dataPoints.push({
                     grade: grade,
