@@ -151,6 +151,128 @@
             font-style: italic;
         }
         
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #fc5200;
+        }
+
+        .tab {
+            background-color: #eee;
+            color: #333;
+            border-radius: 8px 8px 0 0;
+            padding: 10px 20px;
+        }
+
+        .tab:hover {
+            background-color: #ffe3d6;
+        }
+
+        .tab.active {
+            background-color: #fc5200;
+            color: white;
+        }
+
+        /* Activity trends tool */
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .controls-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .controls-row input[type="date"],
+        .controls-row select {
+            padding: 6px 8px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .small-btn {
+            padding: 6px 14px;
+            font-size: 14px;
+        }
+
+        .preset-btn {
+            padding: 6px 10px;
+            font-size: 13px;
+            background-color: #fff5f0;
+            color: #fc5200;
+            border: 1px solid #fc5200;
+        }
+
+        .preset-btn:hover {
+            background-color: #fc5200;
+            color: white;
+        }
+
+        .link-btn {
+            background: none;
+            color: #fc5200;
+            padding: 0 4px;
+            font-size: 13px;
+            text-decoration: underline;
+        }
+
+        .link-btn:hover {
+            background: none;
+            color: #e04b00;
+        }
+
+        .type-option {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background-color: #fff5f0;
+            border: 1px solid #ffd8c4;
+            border-radius: 12px;
+            padding: 4px 10px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .type-count {
+            color: #999;
+        }
+
+        .trend-chart-wrap {
+            position: relative;
+        }
+
+        .trend-tooltip {
+            position: absolute;
+            pointer-events: none;
+            background: rgba(30, 30, 30, 0.9);
+            color: white;
+            font-size: 12px;
+            padding: 6px 10px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .trend-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            margin-top: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .trend-summary strong {
+            display: block;
+            color: #333;
+            font-size: 20px;
+        }
+
         @media (max-width: 600px) {
             .splits-table {
                 font-size: 12px;
@@ -176,6 +298,13 @@
 
     <!-- Main Section -->
     <div id="mainSection" class="hidden">
+        <div class="tabs">
+            <button id="tabBtn-analyzer" class="tab active" onclick="showTab('analyzer')">Run Analyzer</button>
+            <button id="tabBtn-trends" class="tab" onclick="showTab('trends')">Activity Over Time</button>
+        </div>
+
+        <!-- Run Analyzer Tab (existing tool) -->
+        <div id="analyzerTab">
         <div class="card">
             <h1>My Recent Running Activities</h1>
             <p>Your running and trail running activities - click to view pace at grade details splits</p>
@@ -192,6 +321,56 @@
         
         <div id="loadMoreContainer" class="card hidden" style="text-align: center;">
             <button id="loadMoreBtn" onclick="loadMoreActivities()">Load More Activities</button>
+        </div>
+        </div>
+
+        <!-- Activity Over Time Tab -->
+        <div id="trendsTab" class="hidden">
+            <div class="card">
+                <h1>Activity Over Time</h1>
+                <p>Weekly totals from your Strava activities (weeks start on Monday).</p>
+                <button onclick="logout()">Disconnect</button>
+            </div>
+
+            <div id="trendsError" class="error hidden"></div>
+
+            <div class="card">
+                <div class="controls-row">
+                    <label>From <input type="date" id="trendStart"></label>
+                    <label>To <input type="date" id="trendEnd"></label>
+                    <button class="small-btn" onclick="applyTrendRange()">Apply</button>
+                    <span style="margin-left: 10px;">Quick:</span>
+                    <button class="preset-btn" onclick="setTrendPreset(3)">3M</button>
+                    <button class="preset-btn" onclick="setTrendPreset(6)">6M</button>
+                    <button class="preset-btn" onclick="setTrendPreset(12)">1Y</button>
+                    <button class="preset-btn" onclick="setTrendPreset(24)">2Y</button>
+                    <button class="preset-btn" onclick="setTrendPreset('ytd')">YTD</button>
+                </div>
+                <div class="controls-row">
+                    <label>Show per week:
+                        <select id="trendMetric" onchange="drawTrendsChart()">
+                            <option value="distance">Distance (km)</option>
+                            <option value="time">Moving time (hours)</option>
+                            <option value="elevation">Elevation gain (m)</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="controls-row">
+                    <strong>Activity types:</strong>
+                    <button class="link-btn" onclick="setAllTrendTypes(true)">all</button>
+                    <button class="link-btn" onclick="setAllTrendTypes(false)">none</button>
+                    <span id="trendTypeList" class="controls-row" style="margin: 0;"></span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div id="trendsStatus" class="splits-loading hidden"></div>
+                <div class="chart-container trend-chart-wrap">
+                    <canvas id="trendsCanvas" class="chart-canvas"></canvas>
+                    <div id="trendTooltip" class="trend-tooltip hidden"></div>
+                </div>
+                <div id="trendSummary" class="trend-summary"></div>
+            </div>
         </div>
     </div>
 
@@ -661,6 +840,538 @@
         function showMainSection() {
             document.getElementById('loginSection').classList.add('hidden');
             document.getElementById('mainSection').classList.remove('hidden');
+        }
+
+        // =====================================================================
+        // Tabs
+        // =====================================================================
+
+        function showTab(tab) {
+            var isTrends = tab === 'trends';
+            document.getElementById('analyzerTab').classList.toggle('hidden', isTrends);
+            document.getElementById('trendsTab').classList.toggle('hidden', !isTrends);
+            document.getElementById('tabBtn-analyzer').classList.toggle('active', !isTrends);
+            document.getElementById('tabBtn-trends').classList.toggle('active', isTrends);
+
+            if (isTrends) {
+                initTrends();
+            }
+        }
+
+        // =====================================================================
+        // Activity Over Time tool
+        // =====================================================================
+
+        // Types checked by default. "IndoorRun" is a Run recorded on a treadmill
+        // (Strava marks these with trainer = true); "VirtualRun" is Strava's
+        // indoor/virtual run sport type (e.g. Zwift).
+        var DEFAULT_TREND_TYPES = ['Run', 'TrailRun', 'IndoorRun', 'VirtualRun'];
+
+        var TREND_TYPE_LABELS = {
+            Run: 'Run',
+            TrailRun: 'Trail Run',
+            IndoorRun: 'Indoor Run (treadmill)',
+            VirtualRun: 'Virtual Run',
+            Ride: 'Ride',
+            VirtualRide: 'Virtual Ride',
+            Walk: 'Walk',
+            Hike: 'Hike'
+        };
+
+        var TREND_METRICS = {
+            distance: {
+                label: 'Distance (km)',
+                value: function(a) { return (a.distance || 0) / 1000; },
+                format: function(v) { return v.toFixed(1) + ' km'; }
+            },
+            time: {
+                label: 'Moving Time (hours)',
+                value: function(a) { return (a.moving_time || 0) / 3600; },
+                format: function(v) {
+                    var h = Math.floor(v);
+                    var m = Math.round((v - h) * 60);
+                    if (m === 60) { h++; m = 0; }
+                    return h + 'h ' + m + 'm';
+                }
+            },
+            elevation: {
+                label: 'Elevation Gain (m)',
+                value: function(a) { return a.total_elevation_gain || 0; },
+                format: function(v) { return Math.round(v).toLocaleString() + ' m'; }
+            }
+        };
+
+        var trendsInitialized = false;
+        var trendsToken = null;          // token the cache was built with
+        var trendActivities = {};        // id -> activity
+        var trendCoveredStart = null;    // ms, earliest time fully fetched
+        var trendCoveredEnd = null;      // ms, latest time fully fetched
+        var trendRange = null;           // { start: ms, end: ms } of weeks shown
+        var trendSelectedTypes = {};     // typeKey -> true/false
+        var trendPoints = [];            // plotted points, used for hover
+        var trendHoverIndex = -1;
+        var trendLoading = false;
+
+        function initTrends() {
+            // Reset cached data if the user logged out / in again
+            if (trendsToken !== accessToken) {
+                trendsToken = accessToken;
+                trendActivities = {};
+                trendCoveredStart = null;
+                trendCoveredEnd = null;
+                trendRange = null;
+            }
+
+            if (!trendsInitialized) {
+                trendsInitialized = true;
+                DEFAULT_TREND_TYPES.forEach(function(t) { trendSelectedTypes[t] = true; });
+
+                var canvas = document.getElementById('trendsCanvas');
+                canvas.addEventListener('mousemove', onTrendHover);
+                canvas.addEventListener('mouseleave', function() {
+                    trendHoverIndex = -1;
+                    document.getElementById('trendTooltip').classList.add('hidden');
+                    drawTrendsChart();
+                });
+                window.addEventListener('resize', function() {
+                    if (!document.getElementById('trendsTab').classList.contains('hidden')) {
+                        drawTrendsChart();
+                    }
+                });
+            }
+
+            if (!trendRange) {
+                setTrendPreset(3);
+            } else {
+                drawTrendsChart();
+            }
+        }
+
+        function toDateInputValue(d) {
+            var m = d.getMonth() + 1;
+            var day = d.getDate();
+            return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+        }
+
+        function parseDateInput(value) {
+            if (!value) return null;
+            var parts = value.split('-');
+            return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        }
+
+        // Monday 00:00 local time of the week containing d
+        function startOfWeek(d) {
+            var offset = (d.getDay() + 6) % 7;
+            return new Date(d.getFullYear(), d.getMonth(), d.getDate() - offset);
+        }
+
+        function setTrendPreset(months) {
+            var end = new Date();
+            var start;
+            if (months === 'ytd') {
+                start = new Date(end.getFullYear(), 0, 1);
+            } else {
+                start = new Date(end.getFullYear(), end.getMonth() - months, end.getDate());
+            }
+            document.getElementById('trendStart').value = toDateInputValue(start);
+            document.getElementById('trendEnd').value = toDateInputValue(end);
+            applyTrendRange();
+        }
+
+        function applyTrendRange() {
+            var errorEl = document.getElementById('trendsError');
+            errorEl.classList.add('hidden');
+
+            var start = parseDateInput(document.getElementById('trendStart').value);
+            var end = parseDateInput(document.getElementById('trendEnd').value);
+
+            if (!start || !end) {
+                showError('trendsError', 'Please choose both a start and an end date.');
+                return;
+            }
+            if (start > end) {
+                showError('trendsError', 'The start date must be before the end date.');
+                return;
+            }
+
+            // Expand to whole weeks so the first and last weeks aren't partial
+            var weekStart = startOfWeek(start);
+            var endWeekStart = startOfWeek(end);
+            var weekEnd = new Date(endWeekStart.getFullYear(), endWeekStart.getMonth(), endWeekStart.getDate() + 7);
+
+            trendRange = { start: weekStart.getTime(), end: weekEnd.getTime() };
+            ensureTrendData(trendRange.start, Math.min(trendRange.end, Date.now()));
+        }
+
+        // Fetch only the parts of the requested range not already cached
+        function ensureTrendData(startMs, endMs) {
+            if (trendLoading) return;
+
+            var segments = [];
+            if (trendCoveredStart === null) {
+                segments.push([startMs, endMs]);
+            } else {
+                if (startMs < trendCoveredStart) segments.push([startMs, trendCoveredStart]);
+                if (endMs > trendCoveredEnd) segments.push([trendCoveredEnd, endMs]);
+            }
+
+            if (segments.length === 0) {
+                drawTrendsChart();
+                return;
+            }
+
+            trendLoading = true;
+            setTrendStatus('Loading activities...');
+
+            var chain = Promise.resolve();
+            segments.forEach(function(seg) {
+                chain = chain.then(function() { return fetchTrendSegment(seg[0], seg[1], 1); });
+            });
+
+            chain.then(function() {
+                trendCoveredStart = trendCoveredStart === null ? startMs : Math.min(trendCoveredStart, startMs);
+                trendCoveredEnd = trendCoveredEnd === null ? endMs : Math.max(trendCoveredEnd, endMs);
+                trendLoading = false;
+                setTrendStatus(null);
+                drawTrendsChart();
+            }).catch(function(err) {
+                trendLoading = false;
+                setTrendStatus(null);
+                showError('trendsError', 'Error fetching activities: ' + err.message);
+                drawTrendsChart();
+            });
+        }
+
+        function fetchTrendSegment(startMs, endMs, page) {
+            var url = 'https://www.strava.com/api/v3/athlete/activities?per_page=200' +
+                '&page=' + page +
+                '&after=' + Math.floor(startMs / 1000) +
+                '&before=' + Math.ceil(endMs / 1000);
+
+            return fetch(url, {
+                headers: { 'Authorization': 'Bearer ' + accessToken }
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        logout();
+                        throw new Error('Session expired');
+                    }
+                    if (response.status === 429) {
+                        throw new Error('Strava rate limit reached - please wait a few minutes and try again');
+                    }
+                    throw new Error('Failed to fetch activities');
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                data.forEach(function(a) { trendActivities[a.id] = a; });
+                setTrendStatus('Loading activities... (' + Object.keys(trendActivities).length + ' loaded)');
+                if (data.length === 200) {
+                    return fetchTrendSegment(startMs, endMs, page + 1);
+                }
+            });
+        }
+
+        function setTrendStatus(message) {
+            var el = document.getElementById('trendsStatus');
+            if (message) {
+                el.textContent = message;
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        }
+
+        function trendTypeKey(a) {
+            var t = a.sport_type || a.type;
+            if (t === 'Run' && a.trainer) return 'IndoorRun';
+            return t;
+        }
+
+        function trendTypeLabel(key) {
+            if (TREND_TYPE_LABELS[key]) return TREND_TYPE_LABELS[key];
+            return key.replace(/([a-z])([A-Z])/g, '$1 $2');
+        }
+
+        function activitiesInTrendRange() {
+            var list = [];
+            if (!trendRange) return list;
+            for (var id in trendActivities) {
+                var a = trendActivities[id];
+                var t = new Date(a.start_date).getTime();
+                if (t >= trendRange.start && t < trendRange.end) list.push(a);
+            }
+            return list;
+        }
+
+        function renderTrendTypeList(inRange) {
+            var counts = {};
+            DEFAULT_TREND_TYPES.forEach(function(t) { counts[t] = 0; });
+            inRange.forEach(function(a) {
+                var k = trendTypeKey(a);
+                counts[k] = (counts[k] || 0) + 1;
+            });
+
+            var keys = Object.keys(counts).sort(function(a, b) {
+                return counts[b] - counts[a] || trendTypeLabel(a).localeCompare(trendTypeLabel(b));
+            });
+
+            var html = '';
+            keys.forEach(function(k) {
+                html += '<label class="type-option">' +
+                    '<input type="checkbox" ' + (trendSelectedTypes[k] ? 'checked ' : '') +
+                    'onchange="toggleTrendType(\'' + k + '\', this.checked)"> ' +
+                    trendTypeLabel(k) + ' <span class="type-count">(' + counts[k] + ')</span>' +
+                    '</label>';
+            });
+            document.getElementById('trendTypeList').innerHTML = html;
+        }
+
+        function toggleTrendType(key, checked) {
+            trendSelectedTypes[key] = checked;
+            drawTrendsChart();
+        }
+
+        function setAllTrendTypes(checked) {
+            var boxes = document.querySelectorAll('#trendTypeList input[type="checkbox"]');
+            activitiesInTrendRange().forEach(function(a) { trendSelectedTypes[trendTypeKey(a)] = checked; });
+            DEFAULT_TREND_TYPES.forEach(function(t) { trendSelectedTypes[t] = checked; });
+            boxes.forEach(function(b) { b.checked = checked; });
+            drawTrendsChart();
+        }
+
+        function computeWeeklyBins(inRange, metric) {
+            var bins = [];
+            var index = {};
+            var cursor = new Date(trendRange.start);
+            while (cursor.getTime() < trendRange.end) {
+                index[cursor.getTime()] = bins.length;
+                bins.push({ weekStart: new Date(cursor), value: 0, count: 0 });
+                cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 7);
+            }
+
+            inRange.forEach(function(a) {
+                if (!trendSelectedTypes[trendTypeKey(a)]) return;
+                var wk = startOfWeek(new Date(a.start_date)).getTime();
+                var i = index[wk];
+                if (i === undefined) return;
+                bins[i].value += metric.value(a);
+                bins[i].count++;
+            });
+            return bins;
+        }
+
+        function niceStep(maxValue, targetSteps) {
+            if (maxValue <= 0) return 1;
+            var raw = maxValue / targetSteps;
+            var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+            var norm = raw / mag;
+            var nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+            return nice * mag;
+        }
+
+        function formatWeekLabel(d, includeYear) {
+            var opts = { month: 'short', day: 'numeric' };
+            if (includeYear) opts.year = '2-digit';
+            return d.toLocaleDateString('en-US', opts);
+        }
+
+        function drawTrendsChart() {
+            if (!trendRange) return;
+            var canvas = document.getElementById('trendsCanvas');
+            var width = canvas.offsetWidth;
+            var height = canvas.offsetHeight;
+            if (!width || !height) return; // tab hidden
+
+            var metricKey = document.getElementById('trendMetric').value;
+            var metric = TREND_METRICS[metricKey];
+            var inRange = activitiesInTrendRange();
+            renderTrendTypeList(inRange);
+            var bins = computeWeeklyBins(inRange, metric);
+
+            // Crisp rendering on high-DPI screens
+            var dpr = window.devicePixelRatio || 1;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            var ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, width, height);
+
+            var margin = { top: 20, right: 25, bottom: 60, left: 70 };
+            var chartWidth = width - margin.left - margin.right;
+            var chartHeight = height - margin.top - margin.bottom;
+
+            var maxValue = 0;
+            bins.forEach(function(b) { if (b.value > maxValue) maxValue = b.value; });
+            var step = niceStep(maxValue * 1.1, 5);
+            var yMax = Math.max(step, Math.ceil((maxValue * 1.1) / step) * step);
+
+            function xFor(i) {
+                if (bins.length === 1) return margin.left + chartWidth / 2;
+                return margin.left + (chartWidth * i / (bins.length - 1));
+            }
+            function yFor(v) {
+                return height - margin.bottom - (v / yMax) * chartHeight;
+            }
+
+            // Y grid and labels
+            ctx.font = '12px Arial';
+            ctx.lineWidth = 1;
+            for (var v = 0; v <= yMax + step / 1000; v += step) {
+                var y = yFor(v);
+                ctx.strokeStyle = '#ddd';
+                ctx.beginPath();
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(width - margin.right, y);
+                ctx.stroke();
+                ctx.fillStyle = '#666';
+                ctx.textAlign = 'right';
+                var label = step < 1 ? v.toFixed(1) : Math.round(v).toLocaleString();
+                ctx.fillText(label, margin.left - 8, y + 4);
+            }
+
+            // X labels (thinned so they don't overlap)
+            var spansYears = bins.length > 0 &&
+                bins[0].weekStart.getFullYear() !== bins[bins.length - 1].weekStart.getFullYear();
+            var maxLabels = Math.max(2, Math.floor(chartWidth / 75));
+            var labelEvery = Math.max(1, Math.ceil(bins.length / maxLabels));
+            ctx.fillStyle = '#666';
+            ctx.textAlign = 'center';
+            for (var i = 0; i < bins.length; i += labelEvery) {
+                var x = xFor(i);
+                ctx.strokeStyle = '#eee';
+                ctx.beginPath();
+                ctx.moveTo(x, margin.top);
+                ctx.lineTo(x, height - margin.bottom);
+                ctx.stroke();
+                ctx.strokeStyle = '#333';
+                ctx.beginPath();
+                ctx.moveTo(x, height - margin.bottom);
+                ctx.lineTo(x, height - margin.bottom + 5);
+                ctx.stroke();
+                ctx.fillText(formatWeekLabel(bins[i].weekStart, spansYears), x, height - margin.bottom + 20);
+            }
+
+            // Axes
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(margin.left, margin.top);
+            ctx.lineTo(margin.left, height - margin.bottom);
+            ctx.lineTo(width - margin.right, height - margin.bottom);
+            ctx.stroke();
+
+            // Axis titles
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Week starting', margin.left + chartWidth / 2, height - 12);
+            ctx.save();
+            ctx.translate(18, margin.top + chartHeight / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText(metric.label + ' per week', 0, 0);
+            ctx.restore();
+
+            // Hover guide
+            if (trendHoverIndex >= 0 && trendHoverIndex < bins.length) {
+                var hx = xFor(trendHoverIndex);
+                ctx.strokeStyle = 'rgba(252, 82, 0, 0.35)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(hx, margin.top);
+                ctx.lineTo(hx, height - margin.bottom);
+                ctx.stroke();
+            }
+
+            // Area fill + line
+            trendPoints = bins.map(function(b, i) { return { x: xFor(i), y: yFor(b.value), bin: b }; });
+            if (trendPoints.length > 1) {
+                ctx.fillStyle = 'rgba(252, 82, 0, 0.08)';
+                ctx.beginPath();
+                ctx.moveTo(trendPoints[0].x, yFor(0));
+                trendPoints.forEach(function(p) { ctx.lineTo(p.x, p.y); });
+                ctx.lineTo(trendPoints[trendPoints.length - 1].x, yFor(0));
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.strokeStyle = '#fc5200';
+                ctx.lineWidth = 2.5;
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                trendPoints.forEach(function(p, i) {
+                    if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+                });
+                ctx.stroke();
+            }
+
+            // Points (skip when very dense, except the hovered one)
+            var showDots = bins.length <= 60;
+            trendPoints.forEach(function(p, i) {
+                if (!showDots && i !== trendHoverIndex) return;
+                ctx.fillStyle = i === trendHoverIndex ? '#c43f00' : '#fc5200';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, i === trendHoverIndex ? 6 : 4, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+
+            renderTrendSummary(bins, metric);
+        }
+
+        function renderTrendSummary(bins, metric) {
+            var total = 0, count = 0, best = null;
+            bins.forEach(function(b) {
+                total += b.value;
+                count += b.count;
+                if (!best || b.value > best.value) best = b;
+            });
+            var avg = bins.length ? total / bins.length : 0;
+
+            var html = '';
+            html += '<div><strong>' + metric.format(total) + '</strong>Total</div>';
+            html += '<div><strong>' + metric.format(avg) + '</strong>Weekly average</div>';
+            if (best && best.value > 0) {
+                html += '<div><strong>' + metric.format(best.value) + '</strong>Best week (' +
+                    formatWeekLabel(best.weekStart, true) + ')</div>';
+            }
+            html += '<div><strong>' + count + '</strong>Activities</div>';
+            html += '<div><strong>' + bins.length + '</strong>Weeks</div>';
+            document.getElementById('trendSummary').innerHTML = html;
+        }
+
+        function onTrendHover(e) {
+            if (trendPoints.length === 0) return;
+            var canvas = document.getElementById('trendsCanvas');
+            var rect = canvas.getBoundingClientRect();
+            var mx = e.clientX - rect.left;
+
+            var nearest = 0;
+            for (var i = 1; i < trendPoints.length; i++) {
+                if (Math.abs(trendPoints[i].x - mx) < Math.abs(trendPoints[nearest].x - mx)) nearest = i;
+            }
+
+            if (nearest !== trendHoverIndex) {
+                trendHoverIndex = nearest;
+                drawTrendsChart();
+            }
+
+            var p = trendPoints[nearest];
+            var metric = TREND_METRICS[document.getElementById('trendMetric').value];
+            var weekEnd = new Date(p.bin.weekStart.getFullYear(), p.bin.weekStart.getMonth(), p.bin.weekStart.getDate() + 6);
+            var tooltip = document.getElementById('trendTooltip');
+            tooltip.innerHTML = '<b>' + formatWeekLabel(p.bin.weekStart, true) + ' – ' + formatWeekLabel(weekEnd, true) + '</b><br>' +
+                metric.format(p.bin.value) + ' • ' + p.bin.count + ' activit' + (p.bin.count === 1 ? 'y' : 'ies');
+            tooltip.classList.remove('hidden');
+
+            // Position relative to the chart container (canvas sits inside its padding)
+            var offsetX = canvas.offsetLeft;
+            var offsetY = canvas.offsetTop;
+            var left = offsetX + p.x + 12;
+            if (left + tooltip.offsetWidth > offsetX + canvas.offsetWidth) {
+                left = offsetX + p.x - tooltip.offsetWidth - 12;
+            }
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = (offsetY + Math.max(0, p.y - 40)) + 'px';
         }
     </script>
 </body>
