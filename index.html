@@ -273,6 +273,88 @@
             font-size: 20px;
         }
 
+        /* Target model editor */
+        .model-editor {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        .model-help {
+            color: #666;
+            font-size: 13px;
+            margin-top: 0;
+        }
+
+        .model-grid {
+            display: grid;
+            grid-template-columns: auto 1fr 1fr;
+            gap: 10px 15px;
+            align-items: center;
+            max-width: 500px;
+        }
+
+        .model-col-label {
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+        }
+
+        .model-row-label {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .model-grid input {
+            padding: 6px 8px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .model-grid input.invalid {
+            border-color: #c33;
+            background-color: #fee;
+        }
+
+        /* Trends summary table */
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        .summary-table th,
+        .summary-table td {
+            padding: 8px 10px;
+            text-align: right;
+            border-bottom: 1px solid #eee;
+        }
+
+        .summary-table th:first-child,
+        .summary-table td:first-child {
+            text-align: left;
+        }
+
+        .summary-table th {
+            color: #666;
+            font-weight: normal;
+        }
+
+        .summary-table tr.graphed td {
+            background-color: #fff5f0;
+            font-weight: bold;
+        }
+
+        .summary-best-date {
+            color: #999;
+            font-size: 12px;
+            font-weight: normal;
+        }
+
         @media (max-width: 600px) {
             .splits-table {
                 font-size: 12px;
@@ -317,8 +399,35 @@
             Loading activities...
         </div>
         
+        <div class="card">
+            <button id="modelToggleBtn" onclick="toggleModelEditor()">Edit target model ▼</button>
+            <div id="modelEditor" class="model-editor hidden">
+                <p class="model-help">Coefficients of the UTS target curve: speed (km/h) = a·grade² + b·grade + c.
+                    Downhill coefficients are used for negative grades, uphill for positive grades.
+                    Open charts update as you type.</p>
+                <div class="model-grid">
+                    <div></div>
+                    <div class="model-col-label">Downhill coefficients</div>
+                    <div class="model-col-label">Uphill Coefficients</div>
+
+                    <div class="model-row-label">2nd Degree</div>
+                    <input type="number" step="0.0001" id="model-down-a" oninput="onModelInput()">
+                    <input type="number" step="0.0001" id="model-up-a" oninput="onModelInput()">
+
+                    <div class="model-row-label">1st Degree</div>
+                    <input type="number" step="0.0001" id="model-down-b" oninput="onModelInput()">
+                    <input type="number" step="0.0001" id="model-up-b" oninput="onModelInput()">
+
+                    <div class="model-row-label">Y Intercept</div>
+                    <input type="number" step="0.0001" id="model-down-c" oninput="onModelInput()">
+                    <input type="number" step="0.0001" id="model-up-c" oninput="onModelInput()">
+                </div>
+                <button class="small-btn" style="margin-top: 15px;" onclick="resetTargetModel()">Reset to defaults</button>
+            </div>
+        </div>
+
         <div id="activitiesSection" class="hidden"></div>
-        
+
         <div id="loadMoreContainer" class="card hidden" style="text-align: center;">
             <button id="loadMoreBtn" onclick="loadMoreActivities()">Load More Activities</button>
         </div>
@@ -369,7 +478,7 @@
                     <canvas id="trendsCanvas" class="chart-canvas"></canvas>
                     <div id="trendTooltip" class="trend-tooltip hidden"></div>
                 </div>
-                <div id="trendSummary" class="trend-summary"></div>
+                <div id="trendSummary"></div>
             </div>
         </div>
     </div>
@@ -385,6 +494,19 @@
         let expandedActivities = {};
         let currentPage = 1;
         let hasMoreActivities = true;
+
+        // Target model (UTS target curve) coefficients: speed = A*grade^2 + B*grade + C
+        var DEFAULT_TARGET_MODEL = {
+            downA: -0.0031, downB: 0.0653, downC: 9.3872,   // downhill (negative grades)
+            upA: 0.0046, upB: -0.3115, upC: 9.3872          // uphill (positive grades)
+        };
+        var MODEL_INPUT_IDS = {
+            downA: 'model-down-a', downB: 'model-down-b', downC: 'model-down-c',
+            upA: 'model-up-a', upB: 'model-up-b', upC: 'model-up-c'
+        };
+        var splitsCache = {};
+        var targetModel = loadTargetModel();
+        fillModelInputs();
 
         // Check if already logged in
         window.onload = function() {
@@ -606,6 +728,9 @@
                 // Load splits if not already loaded
                 if (!splitsDiv.getAttribute('data-loaded')) {
                     fetchActivitySplits(activityId);
+                } else if (splitsCache[activityId]) {
+                    // Redraw in case the target model changed while collapsed
+                    drawScatterPlot(activityId, splitsCache[activityId]);
                 }
             }
         }
@@ -649,9 +774,80 @@
             html += '</div>';
             
             splitsDiv.innerHTML = html;
-            
+
+            // Remember the splits so the chart can be redrawn when the target model changes
+            splitsCache[activityId] = activity.splits_metric;
+
             // Draw the chart
             drawScatterPlot(activityId, activity.splits_metric);
+        }
+
+        // =====================================================================
+        // Target model editor
+        // =====================================================================
+
+        function toggleModelEditor() {
+            var editor = document.getElementById('modelEditor');
+            var btn = document.getElementById('modelToggleBtn');
+            var opening = editor.classList.contains('hidden');
+            editor.classList.toggle('hidden', !opening);
+            btn.textContent = 'Edit target model ' + (opening ? '▲' : '▼');
+        }
+
+        function loadTargetModel() {
+            var model = {};
+            var saved = null;
+            try {
+                saved = JSON.parse(localStorage.getItem('steve_target_model'));
+            } catch (e) {
+                saved = null;
+            }
+            for (var key in DEFAULT_TARGET_MODEL) {
+                var v = saved ? parseFloat(saved[key]) : NaN;
+                model[key] = isFinite(v) ? v : DEFAULT_TARGET_MODEL[key];
+            }
+            return model;
+        }
+
+        function fillModelInputs() {
+            for (var key in MODEL_INPUT_IDS) {
+                var input = document.getElementById(MODEL_INPUT_IDS[key]);
+                input.value = targetModel[key];
+                input.classList.remove('invalid');
+            }
+        }
+
+        function onModelInput() {
+            for (var key in MODEL_INPUT_IDS) {
+                var input = document.getElementById(MODEL_INPUT_IDS[key]);
+                var v = parseFloat(input.value);
+                if (input.value.trim() !== '' && isFinite(v)) {
+                    targetModel[key] = v;
+                    input.classList.remove('invalid');
+                } else {
+                    // Keep the last valid value until the field is fixed
+                    input.classList.add('invalid');
+                }
+            }
+            localStorage.setItem('steve_target_model', JSON.stringify(targetModel));
+            redrawOpenScatterPlots();
+        }
+
+        function resetTargetModel() {
+            targetModel = Object.assign({}, DEFAULT_TARGET_MODEL);
+            localStorage.removeItem('steve_target_model');
+            fillModelInputs();
+            redrawOpenScatterPlots();
+        }
+
+        function redrawOpenScatterPlots() {
+            for (var id in splitsCache) {
+                var canvas = document.getElementById('chart-' + id);
+                // Only redraw charts that are currently visible; collapsed ones redraw when expanded
+                if (canvas && canvas.offsetWidth > 0) {
+                    drawScatterPlot(id, splitsCache[id]);
+                }
+            }
         }
 
         function drawScatterPlot(activityId, splits) {
@@ -775,13 +971,13 @@
             for (var i = 0; i <= curvePoints; i++) {
                 if (i <= (curvePoints / 2)) {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = -0.0031 * grade * grade + 0.0653 * grade + 9.3872; // post uts100 function
+                    var speed = targetModel.downA * grade * grade + targetModel.downB * grade + targetModel.downC; // downhill target
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
                 } else {
                     var grade = minGrade + (maxGrade - minGrade) * (i / curvePoints);
-                    var speed = 0.0046 * grade * grade - .3115 * grade + 9.3872; // post uts100 function
+                    var speed = targetModel.upA * grade * grade + targetModel.upB * grade + targetModel.upC; // uphill target
                 
                     var x = margin.left + ((grade - minGrade) / (maxGrade - minGrade)) * chartWidth;
                     var y = height - margin.bottom - ((speed - minSpeed) / (maxSpeed - minSpeed)) * chartHeight;
@@ -799,7 +995,7 @@
             ctx.fillStyle = '#0066cc';
             ctx.font = '11px Arial';
             ctx.textAlign = 'left';
-            ctx.fillText('UTS target', margin.left + 10, margin.top + 15);
+            ctx.fillText('model target', margin.left + 10, margin.top + 15);
             
             // Plot data points
             for (var i = 0; i < dataPoints.length; i++) {
@@ -1315,27 +1511,49 @@
                 ctx.fill();
             });
 
-            renderTrendSummary(bins, metric);
+            renderTrendSummary(inRange, metricKey);
         }
 
-        function renderTrendSummary(bins, metric) {
-            var total = 0, count = 0, best = null;
-            bins.forEach(function(b) {
-                total += b.value;
-                count += b.count;
-                if (!best || b.value > best.value) best = b;
-            });
-            var avg = bins.length ? total / bins.length : 0;
+        // Summary always shows distance, time and elevation, whichever one is graphed
+        function renderTrendSummary(inRange, graphedKey) {
+            var rows = '';
+            var activityCount = 0;
+            var weekCount = 0;
 
-            var html = '';
-            html += '<div><strong>' + metric.format(total) + '</strong>Total</div>';
-            html += '<div><strong>' + metric.format(avg) + '</strong>Weekly average</div>';
-            if (best && best.value > 0) {
-                html += '<div><strong>' + metric.format(best.value) + '</strong>Best week (' +
-                    formatWeekLabel(best.weekStart, true) + ')</div>';
-            }
-            html += '<div><strong>' + count + '</strong>Activities</div>';
-            html += '<div><strong>' + bins.length + '</strong>Weeks</div>';
+            ['distance', 'time', 'elevation'].forEach(function(key) {
+                var metric = TREND_METRICS[key];
+                var bins = computeWeeklyBins(inRange, metric);
+                var total = 0, count = 0, best = null;
+                bins.forEach(function(b) {
+                    total += b.value;
+                    count += b.count;
+                    if (!best || b.value > best.value) best = b;
+                });
+                var avg = bins.length ? total / bins.length : 0;
+                activityCount = count;
+                weekCount = bins.length;
+
+                var bestCell = '–';
+                if (best && best.value > 0) {
+                    bestCell = metric.format(best.value) +
+                        ' <span class="summary-best-date">(' + formatWeekLabel(best.weekStart, true) + ')</span>';
+                }
+
+                rows += '<tr' + (key === graphedKey ? ' class="graphed"' : '') + '>' +
+                    '<td>' + metric.label.replace(/ \(.*\)/, '') + '</td>' +
+                    '<td>' + metric.format(total) + '</td>' +
+                    '<td>' + metric.format(avg) + '</td>' +
+                    '<td>' + bestCell + '</td>' +
+                    '</tr>';
+            });
+
+            var html = '<table class="summary-table">' +
+                '<tr><th></th><th>Total</th><th>Weekly average</th><th>Best week</th></tr>' +
+                rows + '</table>';
+            html += '<div class="trend-summary">' +
+                '<div><strong>' + activityCount + '</strong>Activities</div>' +
+                '<div><strong>' + weekCount + '</strong>Weeks</div>' +
+                '</div>';
             document.getElementById('trendSummary').innerHTML = html;
         }
 
